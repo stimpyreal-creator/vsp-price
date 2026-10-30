@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 import sqlite3
@@ -14,6 +15,7 @@ import pandas as pd
 DB_PATH = Path(__file__).resolve().parent / "vsp.db"
 SEED_DB_PATH = Path(__file__).resolve().parent / "vsp_seed.db"
 CATALOG_FLAG = "catalog_imported"
+SEED_HASH_KEY = "catalog_seed_hash"
 
 CONDITIONS = ("Новое", "БУ")
 UNITS = ("Тонна", "Штука")
@@ -42,22 +44,29 @@ def get_connection() -> sqlite3.Connection:
     return conn
 
 
-def _catalog_already_imported() -> bool:
+def _seed_digest() -> str:
+    return hashlib.sha256(SEED_DB_PATH.read_bytes()).hexdigest()
+
+
+def _live_seed_hash() -> str | None:
     if not DB_PATH.exists():
-        return False
+        return None
     try:
         with sqlite3.connect(DB_PATH) as conn:
             row = conn.execute(
                 "SELECT value FROM settings WHERE key = ?",
-                (CATALOG_FLAG,),
+                (SEED_HASH_KEY,),
             ).fetchone()
-            return bool(row)
+            return None if row is None else str(row[0])
     except sqlite3.Error:
-        return False
+        return None
 
 
 def _apply_seed_copy() -> None:
-    if not SEED_DB_PATH.exists() or _catalog_already_imported():
+    if not SEED_DB_PATH.exists():
+        return
+    digest = _seed_digest()
+    if _live_seed_hash() == digest:
         return
     shutil.copy2(SEED_DB_PATH, DB_PATH)
     with sqlite3.connect(DB_PATH) as conn:
@@ -68,6 +77,10 @@ def _apply_seed_copy() -> None:
                 value TEXT NOT NULL
             )
             """
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+            (SEED_HASH_KEY, digest),
         )
         conn.execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",

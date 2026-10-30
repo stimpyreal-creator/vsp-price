@@ -6,6 +6,7 @@ import math
 from typing import Any
 
 KG_PER_TON = 1000.0
+VAT_PERCENT = 20.0
 
 
 def ceil_int(value: float) -> float:
@@ -79,12 +80,14 @@ def line_economics(
     tax_percent: float,
     margin_type: str,
     margin_value: float,
+    margin_deduct_percent: float = VAT_PERCENT,
 ) -> dict[str, float]:
     """Себестоимость, цена продажи и чистая маржа по позиции."""
     purchase_cost = max(float(purchase_cost or 0), 0.0)
     customs_cost = max(float(customs_cost or 0), 0.0)
     tax_percent = max(float(tax_percent or 0), 0.0)
     margin_value = float(margin_value or 0)
+    deduct = min(max(float(margin_deduct_percent or 0), 0.0), 100.0)
 
     tax_amount = ceil_int((purchase_cost + customs_cost) * tax_percent / 100.0)
     cost = ceil_int(purchase_cost + customs_cost + tax_amount)
@@ -96,11 +99,13 @@ def line_economics(
         profit = ceil_int(cost * margin_value / 100.0)
         selling = ceil_int(cost + profit)
 
+    profit_net = ceil_int(profit * (1.0 - deduct / 100.0))
     return {
         "tax_amount": tax_amount,
         "cost": cost,
         "selling": selling,
         "profit": profit,
+        "profit_net": profit_net,
     }
 
 
@@ -125,6 +130,7 @@ def apply_fx(line: dict[str, Any], uah_per_unit: float) -> dict[str, Any]:
         "selling_fx": ceil_fx_1(uah_to_fx(line["selling"], uah_per_unit)),
         "unit_selling_fx": ceil_fx_1(uah_to_fx(line["unit_selling"], uah_per_unit)),
         "profit_fx": ceil_fx_1(uah_to_fx(line["profit"], uah_per_unit)),
+        "profit_net_fx": ceil_fx_1(uah_to_fx(line.get("profit_net", 0.0), uah_per_unit)),
         "cost_fx": ceil_fx_1(uah_to_fx(line["cost"], uah_per_unit)),
     }
 
@@ -135,6 +141,7 @@ def recompute_order(
     customs_value: float,
     customs_mode: str,
     uah_per_unit: float = 0.0,
+    margin_deduct_percent: float = VAT_PERCENT,
 ) -> list[dict[str, Any]]:
     conversions = [
         convert_position(
@@ -162,6 +169,7 @@ def recompute_order(
             tax_percent,
             item.get("margin_type", "%"),
             item.get("margin_value", 0),
+            margin_deduct_percent,
         )
         unit_price = selling_unit_price(eco["selling"], item["quantity"])
         result.append(
@@ -277,7 +285,9 @@ def order_totals(lines: list[dict[str, Any]]) -> dict[str, float]:
         "cost": sum(line["cost"] for line in lines),
         "selling": sum(line["selling"] for line in lines),
         "profit": sum(line["profit"] for line in lines),
+        "profit_net": sum(line.get("profit_net", 0.0) for line in lines),
         "cost_fx": sum(line.get("cost_fx", 0.0) for line in lines),
         "selling_fx": sum(line.get("selling_fx", 0.0) for line in lines),
         "profit_fx": sum(line.get("profit_fx", 0.0) for line in lines),
+        "profit_net_fx": sum(line.get("profit_net_fx", 0.0) for line in lines),
     }

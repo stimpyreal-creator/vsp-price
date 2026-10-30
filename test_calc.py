@@ -57,6 +57,9 @@ def test_margin_currency():
     assert abs(eco["cost"] - 1210) < 1e-6
     assert abs(eco["selling"] - 1460) < 1e-6
     assert abs(eco["profit"] - 250) < 1e-6
+    assert abs(eco["profit_net"] - 200) < 1e-6
+    eco_no_cut = line_economics(1000, 100, 10, "Валюта", 250, margin_deduct_percent=0)
+    assert abs(eco_no_cut["profit_net"] - 250) < 1e-6
     eco2 = line_economics(1001, 0, 0, "%", 0)
     assert abs(eco2["cost"] - 1001) < 1e-6
     assert abs(eco2["selling"] - 1001) < 1e-6

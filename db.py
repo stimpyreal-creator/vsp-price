@@ -152,9 +152,20 @@ def init_db() -> None:
                 selling_uah REAL NOT NULL DEFAULT 0,
                 profit_uah REAL NOT NULL DEFAULT 0,
                 cost_uah REAL NOT NULL DEFAULT 0,
-                items_json TEXT NOT NULL
+                items_json TEXT NOT NULL,
+                margin_deduct_percent REAL NOT NULL DEFAULT 20
             )
             """
+        )
+        conn.commit()
+        _ensure_saved_order_columns(conn)
+
+
+def _ensure_saved_order_columns(conn: sqlite3.Connection) -> None:
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(saved_orders)")}
+    if "margin_deduct_percent" not in cols:
+        conn.execute(
+            "ALTER TABLE saved_orders ADD COLUMN margin_deduct_percent REAL NOT NULL DEFAULT 20"
         )
         conn.commit()
 
@@ -318,6 +329,7 @@ def save_order(
     uah_per_unit: float,
     client_name: str = "",
     note: str = "",
+    margin_deduct_percent: float = 20.0,
 ) -> int:
     if not items:
         raise ValueError("Нельзя сохранить пустой заказ")
@@ -331,8 +343,8 @@ def save_order(
                 tax_percent, customs_mode, customs_value,
                 quote_currency, uah_per_unit,
                 weight_tons, selling_fx, selling_uah, profit_uah, cost_uah,
-                items_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                items_json, margin_deduct_percent
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 created_at,
@@ -347,9 +359,10 @@ def save_order(
                 float(totals.get("weight_tons", 0)),
                 float(totals.get("selling_fx", 0)),
                 float(totals.get("selling", 0)),
-                float(totals.get("profit", 0)),
+                float(totals.get("profit_net", totals.get("profit", 0))),
                 float(totals.get("cost", 0)),
                 payload,
+                float(margin_deduct_percent),
             ),
         )
         conn.commit()

@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+import importlib
+import inspect
 from datetime import datetime
 
 import pandas as pd
 import streamlit as st
 
+import calculations as calc_mod
 from calculations import (
     ceil_int,
     order_totals,
-    recompute_order,
     settle_incoming,
     shipment_lines,
     shipment_totals,
@@ -123,6 +125,10 @@ def init_state() -> None:
         st.session_state.tax_percent = 8.0
         st.session_state.customs_value = 6000.0
         st.session_state.defaults_tax8_customs6000 = True
+    st.session_state.setdefault("margin_deduct_percent", 20.0)
+    if not st.session_state.get("defaults_margin_deduct20"):
+        st.session_state.margin_deduct_percent = 20.0
+        st.session_state.defaults_margin_deduct20 = True
     st.session_state.setdefault("default_margin_type", "%")
     st.session_state.setdefault("default_margin_value", 15.0)
     st.session_state.setdefault("materials_ver", 0)
@@ -162,6 +168,7 @@ def apply_pending_saved_order() -> None:
     items = payload["items"]
     st.session_state.order = items
     st.session_state.tax_percent = float(payload["tax_percent"])
+    st.session_state.margin_deduct_percent = float(payload.get("margin_deduct_percent", 20.0))
     st.session_state.customs_mode = payload["customs_mode"]
     st.session_state.customs_value = float(payload["customs_value"])
     st.session_state.fx_currency = payload["quote_currency"]
@@ -225,13 +232,39 @@ def sync_order_from_widgets() -> None:
             item["margin_value"] = float(st.session_state[key])
 
 
+def run_recompute(
+    items: list,
+    tax_percent: float,
+    customs_value: float,
+    customs_mode: str,
+    uah_per_unit: float,
+    margin_deduct_percent: float | None = None,
+) -> list[dict]:
+    global calc_mod
+    fn = calc_mod.recompute_order
+    params = inspect.signature(fn).parameters
+    if "margin_deduct_percent" not in params:
+        calc_mod = importlib.reload(calc_mod)
+        fn = calc_mod.recompute_order
+        params = inspect.signature(fn).parameters
+    extra: dict = {}
+    if "margin_deduct_percent" in params:
+        extra["margin_deduct_percent"] = float(
+            st.session_state.get("margin_deduct_percent", 20.0)
+            if margin_deduct_percent is None
+            else margin_deduct_percent
+        )
+    return fn(items, tax_percent, customs_value, customs_mode, uah_per_unit, **extra)
+
+
 def computed_lines() -> list[dict]:
-    return recompute_order(
+    return run_recompute(
         st.session_state.order,
         st.session_state.tax_percent,
         st.session_state.customs_value,
         st.session_state.customs_mode,
         st.session_state.fx_rate,
+        st.session_state.margin_deduct_percent,
     )
 
 
@@ -239,6 +272,24 @@ def conversion_ok(input_unit: str, purchase_unit: str, piece_weight_kg: float) -
     if input_unit == purchase_unit:
         return True
     return float(piece_weight_kg) > 0
+
+
+def _margin_deduct_share() -> float:
+    return 1.0 - min(max(float(st.session_state.get("margin_deduct_percent", 20.0)), 0.0), 100.0) / 100.0
+
+
+def margin_net_uah(row: dict) -> float:
+    if "profit_net" in row:
+        return float(row["profit_net"])
+    return ceil_int(float(row.get("profit") or 0) * _margin_deduct_share())
+
+
+def margin_net_fx(row: dict) -> float:
+    if "profit_net_fx" in row:
+        return float(row["profit_net_fx"])
+    if "profit_fx" in row:
+        return ceil_int(float(row.get("profit_fx") or 0) * _margin_deduct_share())
+    return 0.0
 
 
 def compact_cards(items: list[tuple[str, str]]) -> None:
@@ -465,6 +516,15 @@ with tab_calc:
                 format="%.0f",
                 key="customs_value",
             )
+            st.number_input(
+                "Вычет от маржи, %",
+                min_value=0.0,
+                max_value=100.0,
+                step=0.5,
+                format="%.1f",
+                key="margin_deduct_percent",
+                help="Снимается с маржи. По умолчанию 20%.",
+            )
 
             m1, m2 = st.columns(2)
             m1.radio(
@@ -541,12 +601,13 @@ with tab_calc:
         if not can_convert:
             st.error("Нельзя пересчитать единицы: в карточке материала не задан вес 1 штуки.")
         else:
-            preview_lines = recompute_order(
+            preview_lines = run_recompute(
                 [*st.session_state.order, draft],
                 st.session_state.tax_percent,
                 st.session_state.customs_value,
                 st.session_state.customs_mode,
                 st.session_state.fx_rate,
+                st.session_state.margin_deduct_percent,
             )
             preview = preview_lines[-1]
             order_now = order_totals(computed_lines()) if st.session_state.order else None
@@ -605,11 +666,11 @@ with tab_calc:
                     ("Вес заказа", f"{qty_fmt(totals['weight_tons'])} т"),
                     ("Полная себестоимость", money(totals["cost"], "UAH")),
                     ("Итоговая цена продажи (КП)", money(totals["selling_fx"], quote)),
-                    ("Чистая маржа", money(totals["profit"], "UAH")),
+                    ("Маржа", money(margin_net_uah(totals), "UAH")),
                 ]
             )
             st.caption(
-                f"Маржа в валюте КП: {money(totals['profit_fx'], quote)}. "
+                f"Маржа в валюте КП: {money(margin_net_fx(totals), quote)}. "
                 f"Курс 1 {quote} = {st.session_state.fx_rate:.4f} грн."
             )
 
@@ -624,7 +685,7 @@ with tab_calc:
                         "Себест грн": money(line["cost"], "UAH"),
                         f"Цена ед {quote}": money(line["unit_selling_fx"], quote),
                         f"Продажа {quote}": money(line["selling_fx"], quote),
-                        "Маржа грн": money(line["profit"], "UAH"),
+                        "Маржа": money(margin_net_uah(line), "UAH"),
                     }
                     for line in lines
                 ]
@@ -735,6 +796,7 @@ with tab_calc:
                         uah_per_unit=st.session_state.fx_rate,
                         client_name=st.session_state.kp_client,
                         note=st.session_state.kp_note,
+                        margin_deduct_percent=st.session_state.margin_deduct_percent,
                     )
                     st.session_state.opened_saved_id = order_id
                     st.session_state.flash = f"Расчёт сохранён под №{order_id}."
@@ -1001,12 +1063,13 @@ with tab_saved:
                 )
                 full = get_saved_order(int(row["id"]))
                 if full:
-                    saved_lines = recompute_order(
+                    saved_lines = run_recompute(
                         full["items"],
                         full["tax_percent"],
                         full["customs_value"],
                         full["customs_mode"],
                         full["uah_per_unit"],
+                        float(full.get("margin_deduct_percent", 20.0)),
                     )
                     preview = pd.DataFrame(
                         [
@@ -1019,7 +1082,7 @@ with tab_saved:
                                 f"Продажа {full['quote_currency']}": money(
                                     line["selling_fx"], full["quote_currency"]
                                 ),
-                                "Маржа грн": money(line["profit"], "UAH"),
+                                "Маржа": money(margin_net_uah(line), "UAH"),
                             }
                             for line in saved_lines
                         ]

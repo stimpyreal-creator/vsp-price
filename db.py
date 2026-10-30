@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -11,6 +12,8 @@ from typing import Any
 import pandas as pd
 
 DB_PATH = Path(__file__).resolve().parent / "vsp.db"
+SEED_DB_PATH = Path(__file__).resolve().parent / "vsp_seed.db"
+CATALOG_FLAG = "catalog_imported"
 
 CONDITIONS = ("Новое", "БУ")
 UNITS = ("Тонна", "Штука")
@@ -39,7 +42,42 @@ def get_connection() -> sqlite3.Connection:
     return conn
 
 
+def _catalog_already_imported() -> bool:
+    if not DB_PATH.exists():
+        return False
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key = ?",
+                (CATALOG_FLAG,),
+            ).fetchone()
+            return bool(row)
+    except sqlite3.Error:
+        return False
+
+
+def _apply_seed_copy() -> None:
+    if not SEED_DB_PATH.exists() or _catalog_already_imported():
+        return
+    shutil.copy2(SEED_DB_PATH, DB_PATH)
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+            (CATALOG_FLAG, "1"),
+        )
+        conn.commit()
+
+
 def init_db() -> None:
+    _apply_seed_copy()
     with get_connection() as conn:
         conn.execute(
             """

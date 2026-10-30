@@ -8,6 +8,7 @@ import pandas as pd
 import streamlit as st
 
 from calculations import (
+    ceil_int,
     order_totals,
     recompute_order,
     settle_incoming,
@@ -40,46 +41,88 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-if not require_login():
-    st.stop()
-
-init_db()
-
 st.markdown(
     """
     <style>
-      .block-container { padding-top: 1.2rem; padding-bottom: 3rem; max-width: 1180px; }
-      h1 { font-size: 1.55rem !important; letter-spacing: -0.02em; }
-      h2, h3 { letter-spacing: -0.02em; }
+      .block-container { padding-top: 0.65rem; padding-bottom: 1.6rem; max-width: 1180px; }
+      h1 { font-size: 1.22rem !important; letter-spacing: -0.02em; margin-bottom: 0.25rem !important; }
+      h2, h3 { letter-spacing: -0.02em; font-size: 1.02rem !important; }
+      [data-testid="stHeader"] { background: transparent; }
       div[data-testid="stMetric"] {
-        background: #fff;
-        border: 1px solid #d7dee7;
-        border-radius: 12px;
-        padding: 0.7rem 0.9rem;
+        background: #1a1f26;
+        border: 1px solid #2c343e;
+        border-radius: 8px;
+        padding: 0.18rem 0.42rem 0.22rem;
       }
-      div[data-testid="stMetric"] label { color: #5b6775 !important; }
-      .stTabs [data-baseweb="tab-list"] { gap: 0.25rem; flex-wrap: wrap; }
+      div[data-testid="stMetric"] label {
+        color: #8b97a6 !important;
+        font-size: 0.66rem !important;
+      }
+      div[data-testid="stMetricValue"] {
+        font-size: 0.9rem !important;
+        line-height: 1.15 !important;
+      }
+      .stTabs [data-baseweb="tab-list"] { gap: 0.12rem; flex-wrap: wrap; }
       .stTabs [data-baseweb="tab"] {
-        background: #fff;
-        border-radius: 10px 10px 0 0;
-        padding: 0.55rem 1rem;
+        background: #1a1f26;
+        border-radius: 8px 8px 0 0;
+        padding: 0.28rem 0.65rem;
+        font-size: 0.82rem;
       }
-      .hint { color: #5b6775; font-size: 0.92rem; margin-bottom: 0.6rem; }
+      [data-testid="stCaptionContainer"] p { font-size: 0.76rem !important; }
+      .stButton button { min-height: 2rem; }
+      .mini-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin: 0.2rem 0 0.55rem;
+      }
+      .mini-card {
+        background: #1a1f26;
+        border: 1px solid #2c343e;
+        border-radius: 8px;
+        padding: 0.36rem 0.84rem 0.42rem;
+        flex: 0 1 auto;
+        min-width: 12.4rem;
+      }
+      .mini-k {
+        display: block;
+        color: #8b97a6;
+        font-size: 1.05rem;
+        line-height: 1.2;
+      }
+      .mini-v {
+        display: block;
+        font-size: 1.6rem;
+        font-weight: 600;
+        line-height: 1.2;
+        color: #d5dbe3;
+      }
       @media (max-width: 768px) {
-        .block-container { padding-left: 0.7rem; padding-right: 0.7rem; padding-top: 0.7rem; }
-        h1 { font-size: 1.28rem !important; }
+        .block-container { padding-left: 0.5rem; padding-right: 0.5rem; padding-top: 0.4rem; }
+        h1 { font-size: 1.08rem !important; }
+        div[data-testid="stMetricValue"] { font-size: 0.82rem !important; }
       }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
+if not require_login():
+    st.stop()
+
+init_db()
+
 
 def init_state() -> None:
     st.session_state.setdefault("order", [])
-    st.session_state.setdefault("tax_percent", 0.0)
+    st.session_state.setdefault("tax_percent", 8.0)
     st.session_state.setdefault("customs_mode", "На весь заказ")
-    st.session_state.setdefault("customs_value", 0.0)
+    st.session_state.setdefault("customs_value", 6000.0)
+    if not st.session_state.get("defaults_tax8_customs6000"):
+        st.session_state.tax_percent = 8.0
+        st.session_state.customs_value = 6000.0
+        st.session_state.defaults_tax8_customs6000 = True
     st.session_state.setdefault("default_margin_type", "%")
     st.session_state.setdefault("default_margin_value", 15.0)
     st.session_state.setdefault("materials_ver", 0)
@@ -90,10 +133,18 @@ def init_state() -> None:
     stored = get_settings()
     st.session_state.setdefault("ship_order", [])
     st.session_state.setdefault("ship_fx_amount", 0.0)
-    st.session_state.setdefault("ship_customs_percent", 0.0)
+    st.session_state.setdefault("ship_customs_percent", 7.0)
     st.session_state.setdefault("ship_bank_type", "грн")
-    st.session_state.setdefault("ship_bank_value", 0.0)
-    st.session_state.setdefault("ship_remainder_percent", 0.0)
+    st.session_state.setdefault("ship_bank_value", 6000.0)
+    if not st.session_state.get("defaults_ship_customs7_bank6000"):
+        st.session_state.ship_customs_percent = 7.0
+        st.session_state.ship_bank_type = "грн"
+        st.session_state.ship_bank_value = 6000.0
+        st.session_state.defaults_ship_customs7_bank6000 = True
+    st.session_state.setdefault("ship_remainder_percent", 20.0)
+    if not st.session_state.get("defaults_vat20"):
+        st.session_state.ship_remainder_percent = 20.0
+        st.session_state.defaults_vat20 = True
     st.session_state.setdefault("ship_note", "")
     st.session_state.setdefault("ship_fx_currency", stored["quote_currency"])
     st.session_state.setdefault("ship_fx_rate", stored["uah_per_unit"])
@@ -123,7 +174,9 @@ def apply_pending_saved_order() -> None:
             item["margin_type"] = "грн"
         uid = item["uid"]
         st.session_state[f"mt_{uid}"] = item["margin_type"]
-        st.session_state[f"qty_{uid}"] = float(item["quantity"])
+        qty = float(item["quantity"])
+        st.session_state[f"qty_{uid}"] = qty
+        st.session_state[qty_widget_key(f"qty_{uid}", item.get("input_unit", "Тонна"))] = qty
         if item["margin_type"] == "%":
             st.session_state[f"mv_pct_{uid}"] = float(item["margin_value"])
         else:
@@ -161,8 +214,9 @@ def sync_order_from_widgets() -> None:
         uid = item["uid"]
         if f"mt_{uid}" in st.session_state:
             item["margin_type"] = st.session_state[f"mt_{uid}"]
-        if f"qty_{uid}" in st.session_state:
-            item["quantity"] = float(st.session_state[f"qty_{uid}"])
+        qty = read_qty(f"qty_{uid}", item.get("input_unit", "Тонна"), item["quantity"])
+        if qty is not None:
+            item["quantity"] = qty
         if item.get("margin_type") in ("Валюта", "грн"):
             key = f"mv_rub_{uid}"
         else:
@@ -187,36 +241,67 @@ def conversion_ok(input_unit: str, purchase_unit: str, piece_weight_kg: float) -
     return float(piece_weight_kg) > 0
 
 
+def compact_cards(items: list[tuple[str, str]]) -> None:
+    cells = "".join(
+        f'<div class="mini-card"><span class="mini-k">{label}</span>'
+        f'<span class="mini-v">{value}</span></div>'
+        for label, value in items
+    )
+    st.markdown(f'<div class="mini-row">{cells}</div>', unsafe_allow_html=True)
+
+
+def qty_widget_key(base: str, unit: str) -> str:
+    return f"{base}__pcs" if unit == "Штука" else f"{base}__ton"
+
+
+def read_qty(base: str, unit: str, fallback: float | None = None) -> float | None:
+    key = qty_widget_key(base, unit)
+    if key in st.session_state:
+        return float(st.session_state[key])
+    if base in st.session_state:
+        return float(st.session_state[base])
+    return fallback
+
+
+def quantity_input(label: str, *, base_key: str, unit: str, container=None, value: float | None = None):
+    target = container if container is not None else st
+    pcs = unit == "Штука"
+    wkey = qty_widget_key(base_key, unit)
+    if wkey not in st.session_state:
+        other = qty_widget_key(base_key, "Тонна" if pcs else "Штука")
+        raw = st.session_state.get(
+            other,
+            st.session_state.get(base_key, 1.0 if value is None else value),
+        )
+        st.session_state[wkey] = float(int(round(float(raw)))) if pcs else float(raw)
+    return target.number_input(
+        label,
+        min_value=0.0,
+        step=1.0 if pcs else 0.1,
+        format="%.0f" if pcs else "%.3f",
+        key=wkey,
+    )
+
+
 def sync_ship_from_widgets() -> None:
     for item in st.session_state.ship_order:
         uid = item["uid"]
-        if f"sqty_{uid}" in st.session_state:
-            item["quantity"] = float(st.session_state[f"sqty_{uid}"])
         if f"sunit_{uid}" in st.session_state:
             item["input_unit"] = st.session_state[f"sunit_{uid}"]
+        qty = read_qty(f"sqty_{uid}", item.get("input_unit", "Тонна"), item["quantity"])
+        if qty is not None:
+            item["quantity"] = qty
 
 
 init_state()
-
-st.title("Расчёт цен продажи материалов ВСП")
-st.markdown(
-    '<div class="hint">Закупка в базе — в гривнах. Наценка, налог и затаможка '
-    "считаются внутри в грн. Все денежные суммы округляются вверх до целых, "
-    "без копеек и без запятой. "
-    "В коммерческом предложении клиент видит только отпускные цены в выбранной "
-    "валюте по курсу.</div>",
-    unsafe_allow_html=True,
-)
 
 tab_admin, tab_calc, tab_ship, tab_saved = st.tabs(
     ["База материалов", "Калькулятор заказа", "Расчёт поступления", "Сохранённые расчёты"]
 )
 
 with tab_admin:
-    st.subheader("Админ-панель")
-    st.caption("Цены закупки в базе хранятся в гривнах (₴).")
     stored = get_settings()
-    with st.expander("Курс валюты для КП", expanded=True):
+    with st.expander("Курс валюты для КП", expanded=False):
         with st.form("fx_settings"):
             f1, f2 = st.columns(2)
             fx_cur = f1.selectbox(
@@ -328,102 +413,114 @@ with tab_calc:
     if materials_df.empty:
         st.warning("Сначала добавьте материалы на вкладке «База материалов».")
     else:
-        st.subheader("Параметры расчёта заказа")
         if st.session_state.flash:
             st.success(st.session_state.flash)
             st.session_state.flash = None
-        fx1, fx2 = st.columns(2)
-        fx1.selectbox(
-            "Валюта КП",
-            list(QUOTE_CURRENCIES),
-            key="fx_currency",
-            help="Отпускные цены для клиента и PDF считаются в этой валюте.",
-        )
-        fx2.number_input(
-            f"Курс: грн за 1 {st.session_state.fx_currency}",
-            min_value=0.0001,
-            step=0.01,
-            format="%.4f",
-            key="fx_rate",
-            help="Цена КП = себестоимость и наценка в грн, делённые на курс.",
-        )
-        persist_fx()
-        st.caption(
-            f"1 {st.session_state.fx_currency} = {st.session_state.fx_rate:.4f} грн. "
-            "Курс пишется в базу и сразу пересчитывает КП."
-        )
+        with st.expander("Параметры расчёта заказа", expanded=False):
+            fx1, fx2 = st.columns(2)
+            fx1.selectbox(
+                "Валюта КП",
+                list(QUOTE_CURRENCIES),
+                key="fx_currency",
+                help="Отпускные цены для клиента и PDF считаются в этой валюте.",
+            )
+            fx2.number_input(
+                f"Курс: грн за 1 {st.session_state.fx_currency}",
+                min_value=0.0001,
+                step=0.01,
+                format="%.4f",
+                key="fx_rate",
+                help="Цена КП = себестоимость и наценка в грн, делённые на курс.",
+            )
+            persist_fx()
+            st.caption(
+                f"1 {st.session_state.fx_currency} = {st.session_state.fx_rate:.4f} грн. "
+                "Курс пишется в базу и сразу пересчитывает КП."
+            )
 
-        p1, p2, p3 = st.columns(3)
-        p1.number_input(
-            "Налог, %",
-            min_value=0.0,
-            max_value=100.0,
-            step=0.5,
-            key="tax_percent",
-            help="Начисляется на сумму закупки и затаможки позиции.",
-        )
-        p2.radio(
-            "Затаможка",
-            ["На весь заказ", "За тонну"],
-            horizontal=True,
-            key="customs_mode",
-        )
-        customs_label = (
-            "Стоимость затаможки, грн (весь заказ)"
-            if st.session_state.customs_mode == "На весь заказ"
-            else "Стоимость затаможки, грн за тонну"
-        )
-        p3.number_input(
-            customs_label,
-            min_value=0.0,
-            step=10.0,
-            format="%.0f",
-            key="customs_value",
-        )
+            p1, p2, p3 = st.columns(3)
+            p1.number_input(
+                "Налог, %",
+                min_value=0.0,
+                max_value=100.0,
+                step=0.5,
+                key="tax_percent",
+                help="Начисляется на сумму закупки и затаможки позиции.",
+            )
+            p2.radio(
+                "Затаможка",
+                ["На весь заказ", "За тонну"],
+                horizontal=True,
+                key="customs_mode",
+            )
+            customs_label = (
+                "Стоимость затаможки, грн (весь заказ)"
+                if st.session_state.customs_mode == "На весь заказ"
+                else "Стоимость затаможки, грн за тонну"
+            )
+            p3.number_input(
+                customs_label,
+                min_value=0.0,
+                step=10.0,
+                format="%.0f",
+                key="customs_value",
+            )
 
-        m1, m2 = st.columns(2)
-        m1.radio(
-            "Наценка по умолчанию для новых позиций",
-            ["%", "грн"],
-            horizontal=True,
-            key="default_margin_type",
-            help="«%» — доля от себестоимости в грн. «грн» — фиксированная прибыль в гривнах.",
-        )
-        margin_caption = (
-            "Наценка, %"
-            if st.session_state.default_margin_type == "%"
-            else "Наценка, грн (чистая маржа позиции)"
-        )
-        m2.number_input(
-            margin_caption,
-            step=1.0,
-            format="%.0f" if st.session_state.default_margin_type == "грн" else "%.2f",
-            key="default_margin_value",
-        )
+            m1, m2 = st.columns(2)
+            m1.radio(
+                "Наценка по умолчанию для новых позиций",
+                ["%", "грн"],
+                horizontal=True,
+                key="default_margin_type",
+                help="«%» — доля от себестоимости в грн. «грн» — фиксированная прибыль в гривнах.",
+            )
+            margin_caption = (
+                "Наценка, %"
+                if st.session_state.default_margin_type == "%"
+                else "Наценка, грн (чистая маржа позиции)"
+            )
+            m2.number_input(
+                margin_caption,
+                step=1.0,
+                format="%.0f" if st.session_state.default_margin_type == "грн" else "%.2f",
+                key="default_margin_value",
+            )
 
         sync_order_from_widgets()
 
-        st.divider()
-        st.subheader("Добавить позицию")
         labels = [material_label(row) for _, row in materials_df.iterrows()]
-        selected_label = st.selectbox("Материал из базы", labels)
+        selected_label = st.selectbox(
+            "Материал из базы",
+            labels,
+            label_visibility="collapsed",
+        )
         selected_row = materials_df.iloc[labels.index(selected_label)]
-
-        info1, info2, info3 = st.columns(3)
-        info1.metric("Состояние", str(selected_row["Состояние"]))
-        info2.metric("Единица закупки", str(selected_row["Единица закупки"]))
-        info3.metric("Вес 1 шт", f"{qty_fmt(float(selected_row['Вес 1 шт, кг']))} кг")
         purchase_unit = str(selected_row["Единица закупки"])
         unit_word = "тонну" if purchase_unit == "Тонна" else "штуку"
+        purchase_price = float(selected_row["Цена закупки"])
+        piece_weight = float(selected_row["Вес 1 шт, кг"])
+        if purchase_unit == "Штука":
+            piece_price = purchase_price
+        elif piece_weight > 0:
+            piece_price = ceil_int(purchase_price * piece_weight / 1000.0)
+        else:
+            piece_price = 0.0
         st.caption(
-            f"Цена закупки: {money(float(selected_row['Цена закупки']), 'UAH')} за 1 {unit_word}"
+            f"Цена закупки: {money(purchase_price, 'UAH')} за 1 {unit_word}. "
+            f"{money(piece_price, 'UAH')} за 1 шт. "
+            f"Вес 1 шт: {qty_fmt(piece_weight)} кг"
         )
 
-        q1, q2 = st.columns([1.2, 1])
-        add_qty = q1.number_input("Количество", min_value=0.0, value=1.0, step=0.1, format="%.3f")
         unit_key = f"add_unit_{int(selected_row['ID'])}"
         st.session_state.setdefault(unit_key, purchase_unit)
+        q1, q2 = st.columns([1.2, 1])
         add_unit = q2.radio("Ввод количества", list(UNITS), horizontal=True, key=unit_key)
+        add_qty = quantity_input(
+            "Количество",
+            base_key=f"add_qty_{int(selected_row['ID'])}",
+            unit=add_unit,
+            container=q1,
+        )
 
         draft = {
             "quantity": add_qty,
@@ -453,15 +550,18 @@ with tab_calc:
             )
             preview = preview_lines[-1]
             order_now = order_totals(computed_lines()) if st.session_state.order else None
-            pv1, pv2, pv3 = st.columns(3)
-            pv1.metric("Вес позиции", f"{qty_fmt(preview['weight_tons'])} т")
-            pv2.metric(
-                "Вес заказа сейчас",
-                f"{qty_fmt(order_now['weight_tons'])} т" if order_now else "0 т",
-            )
-            pv3.metric(
-                "Вес заказа с этой позицией",
-                f"{qty_fmt(order_totals(preview_lines)['weight_tons'])} т",
+            compact_cards(
+                [
+                    ("Вес позиции", f"{qty_fmt(preview['weight_tons'])} т"),
+                    (
+                        "Вес заказа сейчас",
+                        f"{qty_fmt(order_now['weight_tons'])} т" if order_now else "0 т",
+                    ),
+                    (
+                        "Вес заказа с этой позицией",
+                        f"{qty_fmt(order_totals(preview_lines)['weight_tons'])} т",
+                    ),
+                ]
             )
             if add_unit != str(selected_row["Единица закупки"]):
                 st.caption(
@@ -499,12 +599,15 @@ with tab_calc:
             st.info("Заказ пуст. Добавьте хотя бы одну позицию.")
         else:
             totals = order_totals(lines)
-            t1, t2, t3, t4 = st.columns(4)
             quote = st.session_state.fx_currency
-            t1.metric("Вес заказа", f"{qty_fmt(totals['weight_tons'])} т")
-            t2.metric("Полная себестоимость", money(totals["cost"], "UAH"))
-            t3.metric("Итоговая цена продажи (КП)", money(totals["selling_fx"], quote))
-            t4.metric("Чистая маржа", money(totals["profit"], "UAH"))
+            compact_cards(
+                [
+                    ("Вес заказа", f"{qty_fmt(totals['weight_tons'])} т"),
+                    ("Полная себестоимость", money(totals["cost"], "UAH")),
+                    ("Итоговая цена продажи (КП)", money(totals["selling_fx"], quote)),
+                    ("Чистая маржа", money(totals["profit"], "UAH")),
+                ]
+            )
             st.caption(
                 f"Маржа в валюте КП: {money(totals['profit_fx'], quote)}. "
                 f"Курс 1 {quote} = {st.session_state.fx_rate:.4f} грн."
@@ -528,11 +631,6 @@ with tab_calc:
             ).astype(str)
             st.dataframe(table, hide_index=True, width="stretch")
 
-            st.markdown("**Регулирование маржи по позициям**")
-            st.caption(
-                "Меняйте % или сумму в гривнах — цена КП в валюте пересчитается сразу. "
-                "Затаможка в грн распределяется по весу позиций."
-            )
             remove_uid = None
             for line in lines:
                 ensure_item_keys(line, profit=line["profit"])
@@ -562,12 +660,12 @@ with tab_calc:
                             key=f"mv_rub_{line['uid']}",
                             help="Цена продажи в грн = себестоимость + эта сумма, затем перевод в валюту КП.",
                         )
-                    c3.number_input(
+                    quantity_input(
                         "Количество",
-                        min_value=0.0,
-                        step=0.1,
-                        format="%.3f",
-                        key=f"qty_{line['uid']}",
+                        base_key=f"qty_{line['uid']}",
+                        unit=str(line["input_unit"]),
+                        container=c3,
+                        value=float(line["quantity"]),
                     )
                     d1, d2, d3 = st.columns(3)
                     d1.write(f"Вес: **{qty_fmt(line['weight_tons'])} т**")
@@ -609,10 +707,6 @@ with tab_calc:
                 width="stretch",
             )
 
-            st.markdown("**Сохранить расчёт**")
-            st.caption(
-                "Запишите комментарий, чтобы потом найти этот заказ во вкладке «Сохранённые расчёты»."
-            )
             with st.form("save_calc"):
                 comment = st.text_area(
                     "Комментарий к расчёту",
@@ -653,32 +747,29 @@ with tab_calc:
 
 with tab_ship:
     materials_df = list_materials()
-    st.subheader("Расчёт поступления")
-    st.caption(
-        "Сумма отгрузки считается по ценам из базы. После затаможки и комиссии банка "
-        "вычитается отгрузка — это итоговая сумма. От неё снимается ваш процент, получается конечная."
-    )
     if materials_df.empty:
         st.warning("Сначала добавьте материалы на вкладке «База материалов».")
     else:
         sync_ship_from_widgets()
-        st.markdown("**Позиции отгрузки**")
         labels = [material_label(row) for _, row in materials_df.iterrows()]
-        selected_label = st.selectbox("Материал из базы", labels, key="ship_material")
+        selected_label = st.selectbox(
+            "Материал из базы",
+            labels,
+            key="ship_material",
+            label_visibility="collapsed",
+        )
         selected_row = materials_df.iloc[labels.index(selected_label)]
         purchase_unit = str(selected_row["Единица закупки"])
-        q1, q2 = st.columns([1.2, 1])
-        add_qty = q1.number_input(
-            "Количество",
-            min_value=0.0,
-            value=1.0,
-            step=0.1,
-            format="%.3f",
-            key="ship_add_qty",
-        )
         unit_key = f"ship_add_unit_{int(selected_row['ID'])}"
         st.session_state.setdefault(unit_key, purchase_unit)
+        q1, q2 = st.columns([1.2, 1])
         add_unit = q2.radio("Ввод количества", list(UNITS), horizontal=True, key=unit_key)
+        add_qty = quantity_input(
+            "Количество",
+            base_key=f"ship_add_qty_{int(selected_row['ID'])}",
+            unit=add_unit,
+            container=q1,
+        )
         can_convert = conversion_ok(
             add_unit,
             purchase_unit,
@@ -726,9 +817,12 @@ with tab_ship:
                 ]
             ).astype(str)
             st.dataframe(table, hide_index=True, width="stretch")
-            t1, t2 = st.columns(2)
-            t1.metric("Вес отгрузки", f"{qty_fmt(totals['weight_tons'])} т")
-            t2.metric("Сумма отгрузки", money(totals["line_total"], "UAH"))
+            compact_cards(
+                [
+                    ("Вес отгрузки", f"{qty_fmt(totals['weight_tons'])} т"),
+                    ("Сумма отгрузки", money(totals["line_total"], "UAH")),
+                ]
+            )
 
             remove_uid = None
             for line in lines:
@@ -740,18 +834,18 @@ with tab_ship:
                     expanded=False,
                 ):
                     c1, c2 = st.columns(2)
-                    c1.number_input(
-                        "Количество",
-                        min_value=0.0,
-                        step=0.1,
-                        format="%.3f",
-                        key=f"sqty_{uid}",
-                    )
-                    c2.radio(
+                    ship_unit = c2.radio(
                         "Единица",
                         list(UNITS),
                         horizontal=True,
                         key=f"sunit_{uid}",
+                    )
+                    quantity_input(
+                        "Количество",
+                        base_key=f"sqty_{uid}",
+                        unit=ship_unit,
+                        container=c1,
+                        value=float(line["quantity"]),
                     )
                     st.write(f"Сумма: **{money(line['line_total'], 'UAH')}**")
                     if st.button("Убрать", key=f"sdel_{uid}"):
@@ -821,11 +915,14 @@ with tab_ship:
             0.0,
             ship_sum,
         )
-        a1, a2, a3, a4 = st.columns(4)
-        a1.metric("Зашло, грн", money(settlement["incoming_uah"], "UAH"))
-        a2.metric("После затаможки и банка", money(settlement["remainder"], "UAH"))
-        a3.metric("Сумма отгрузки", money(settlement["shipment_uah"], "UAH"))
-        a4.metric("Итоговая сумма", money(settlement["after_shipment"], "UAH"))
+        compact_cards(
+            [
+                ("Зашло, грн", money(settlement["incoming_uah"], "UAH")),
+                ("После затаможки и банка", money(settlement["remainder"], "UAH")),
+                ("Сумма отгрузки", money(settlement["shipment_uah"], "UAH")),
+                ("Итоговая сумма", money(settlement["after_shipment"], "UAH")),
+            ]
+        )
         st.caption(
             f"Затаможка: {money(settlement['customs_amount'], 'UAH')}. "
             f"Комиссия банка: {money(settlement['bank_amount'], 'UAH')}. "
@@ -833,13 +930,13 @@ with tab_ship:
         )
 
         st.number_input(
-            "Процент от итоговой суммы, %",
+            "НДС 20%",
             min_value=0.0,
             max_value=100.0,
             step=0.1,
             format="%.2f",
             key="ship_remainder_percent",
-            help="Снимается с итоговой суммы после вычета отгрузки.",
+            help="НДС снимается с итоговой суммы после вычета отгрузки. По умолчанию 20%.",
         )
         settlement = settle_incoming(
             st.session_state.ship_fx_amount,
@@ -850,9 +947,12 @@ with tab_ship:
             st.session_state.ship_remainder_percent,
             ship_sum,
         )
-        f1, f2 = st.columns(2)
-        f1.metric("Удержание от итоговой", money(settlement["hold_amount"], "UAH"))
-        f2.metric("Конечная сумма", money(settlement["final_uah"], "UAH"))
+        compact_cards(
+            [
+                ("НДС", money(settlement["hold_amount"], "UAH")),
+                ("Сумма без НДС", money(settlement["final_uah"], "UAH")),
+            ]
+        )
 
         st.text_input("Примечание (в PDF)", key="ship_note", placeholder="Необязательно")
         ship_pdf = build_settlement_pdf(

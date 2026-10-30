@@ -339,7 +339,7 @@ def build_settlement_pdf(
         Paragraph(
             "Сумма отгрузки — по ценам закупки из базы. "
             "После затаможки и комиссии банка вычитается отгрузка, "
-            "затем процент от итоговой суммы.",
+            "затем НДС.",
             subtitle,
         )
     )
@@ -425,10 +425,10 @@ def build_settlement_pdf(
         ("Сумма отгрузки", "− " + money(settlement["shipment_uah"], "UAH")),
         ("Итоговая сумма", money(settlement["after_shipment"], "UAH")),
         (
-            f"Процент от итоговой {pct_fmt(settlement['remainder_percent'])}%",
+            f"НДС {pct_fmt(settlement['remainder_percent'])}%",
             "− " + money(settlement["hold_amount"], "UAH"),
         ),
-        ("Конечная сумма", money(settlement["final_uah"], "UAH")),
+        ("Сумма без НДС", money(settlement["final_uah"], "UAH")),
     ]
     money_data: list[list[Any]] = []
     for label, value in money_rows:
@@ -437,7 +437,7 @@ def build_settlement_pdf(
                 Paragraph(label, cell),
                 Paragraph(
                     value,
-                    tot_right if label in ("Итоговая сумма", "Конечная сумма") else cell_right,
+                    tot_right if label in ("Итоговая сумма", "Сумма без НДС") else cell_right,
                 ),
             ]
         )

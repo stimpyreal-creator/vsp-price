@@ -46,7 +46,42 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-      .block-container { padding-top: 0.65rem; padding-bottom: 1.6rem; max-width: 1180px; }
+      .block-container {
+        padding-top: 0.65rem;
+        padding-bottom: 1.6rem;
+        max-width: min(1180px, 100%);
+        overflow-x: hidden;
+      }
+      [data-testid="stAppViewContainer"],
+      [data-testid="stMain"],
+      .main {
+        overflow-x: hidden !important;
+      }
+      [data-testid="stSelectbox"],
+      [data-testid="stSelectbox"] > div,
+      [data-baseweb="select"] {
+        max-width: 100% !important;
+      }
+      [data-baseweb="select"] > div {
+        overflow: hidden;
+      }
+      div[data-testid="stDataFrame"],
+      div[data-testid="stDataEditor"] {
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important;
+      }
+      div[data-testid="stDataFrame"] [data-testid="stDataFrameResizable"],
+      div[data-testid="stDataFrame"] [class*="glideDataEditor"] {
+        max-width: 100% !important;
+        overflow-x: hidden !important;
+      }
+      div[data-testid="stExpander"] summary,
+      div[data-testid="stExpander"] p {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
       h1 { font-size: 1.22rem !important; letter-spacing: -0.02em; margin-bottom: 0.25rem !important; }
       h2, h3 { letter-spacing: -0.02em; font-size: 1.02rem !important; }
       [data-testid="stHeader"] { background: transparent; }
@@ -74,9 +109,9 @@ st.markdown(
       [data-testid="stCaptionContainer"] p { font-size: 0.76rem !important; }
       .stButton button { min-height: 2rem; }
       .mini-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+        gap: 0.45rem;
         margin: 0.2rem 0 0.55rem;
       }
       .mini-card {
@@ -84,14 +119,16 @@ st.markdown(
         border: 1px solid #2c343e;
         border-radius: 8px;
         padding: 0.36rem 0.84rem 0.42rem;
-        flex: 0 1 auto;
-        min-width: 12.4rem;
+        min-width: 0;
       }
       .mini-k {
         display: block;
         color: #8b97a6;
         font-size: 1.05rem;
         line-height: 1.2;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
       .mini-v {
         display: block;
@@ -104,6 +141,17 @@ st.markdown(
         .block-container { padding-left: 0.5rem; padding-right: 0.5rem; padding-top: 0.4rem; }
         h1 { font-size: 1.08rem !important; }
         div[data-testid="stMetricValue"] { font-size: 0.82rem !important; }
+        .mini-row {
+          grid-template-columns: 1fr 1fr;
+          gap: 0.28rem;
+          margin: 0.1rem 0 0.35rem;
+        }
+        .mini-card {
+          padding: 0.16rem 0.38rem 0.18rem;
+          border-radius: 6px;
+        }
+        .mini-k { font-size: 0.62rem; }
+        .mini-v { font-size: 0.92rem; }
       }
     </style>
     """,
@@ -198,6 +246,24 @@ def material_label(row: pd.Series) -> str:
     return f"{int(row['ID'])} · {row['Название']} ({row['Состояние']})"
 
 
+def pick_material_row(materials_df: pd.DataFrame, key: str | None = None) -> pd.Series:
+    ids = [int(i) for i in materials_df["ID"].tolist()]
+    kwargs: dict = {}
+    if key:
+        kwargs["key"] = key
+    chosen = st.selectbox(
+        "Материал из базы",
+        ids,
+        format_func=lambda i: clip_text(
+            material_label(materials_df.loc[materials_df["ID"] == i].iloc[0]),
+            48,
+        ),
+        label_visibility="collapsed",
+        **kwargs,
+    )
+    return materials_df.loc[materials_df["ID"] == chosen].iloc[0]
+
+
 def ensure_item_keys(item: dict, profit: float | None = None) -> None:
     uid = item["uid"]
     if item.get("margin_type") == "Валюта":
@@ -290,6 +356,31 @@ def margin_net_fx(row: dict) -> float:
     if "profit_fx" in row:
         return ceil_int(float(row.get("profit_fx") or 0) * _margin_deduct_share())
     return 0.0
+
+
+def clip_text(text: object, limit: int = 36) -> str:
+    raw = " ".join(str(text or "").split())
+    if len(raw) <= limit:
+        return raw
+    return raw[: limit - 1].rstrip() + "…"
+
+
+def show_fit_table(frame: pd.DataFrame) -> None:
+    config: dict = {}
+    if "Материал" in frame.columns:
+        config["Материал"] = st.column_config.TextColumn("Материал", width="medium")
+    for col in ("Состояние", "Ед.", "Кол-во", "Вес т"):
+        if col in frame.columns:
+            config[col] = st.column_config.TextColumn(col, width="small")
+    display = frame.copy()
+    if "Материал" in display.columns:
+        display["Материал"] = display["Материал"].map(lambda v: clip_text(v, 36))
+    st.dataframe(
+        display,
+        hide_index=True,
+        width="stretch",
+        column_config=config,
+    )
 
 
 def compact_cards(items: list[tuple[str, str]]) -> None:
@@ -548,13 +639,7 @@ with tab_calc:
 
         sync_order_from_widgets()
 
-        labels = [material_label(row) for _, row in materials_df.iterrows()]
-        selected_label = st.selectbox(
-            "Материал из базы",
-            labels,
-            label_visibility="collapsed",
-        )
-        selected_row = materials_df.iloc[labels.index(selected_label)]
+        selected_row = pick_material_row(materials_df, key="calc_material_id")
         purchase_unit = str(selected_row["Единица закупки"])
         unit_word = "тонну" if purchase_unit == "Тонна" else "штуку"
         purchase_price = float(selected_row["Цена закупки"])
@@ -690,16 +775,16 @@ with tab_calc:
                     for line in lines
                 ]
             ).astype(str)
-            st.dataframe(table, hide_index=True, width="stretch")
+            show_fit_table(table)
 
             remove_uid = None
             for line in lines:
                 ensure_item_keys(line, profit=line["profit"])
                 title = (
-                    f"{line['name']} · {line['condition']} · "
+                    f"{clip_text(line['name'], 40)} · {line['condition']} · "
                     f"{qty_fmt(line['quantity'])} {line['input_unit']}"
                 )
-                with st.expander(title, expanded=len(lines) == 1):
+                with st.expander(title, expanded=False):
                     c1, c2, c3 = st.columns(3)
                     c1.radio(
                         "Тип наценки",
@@ -813,14 +898,7 @@ with tab_ship:
         st.warning("Сначала добавьте материалы на вкладке «База материалов».")
     else:
         sync_ship_from_widgets()
-        labels = [material_label(row) for _, row in materials_df.iterrows()]
-        selected_label = st.selectbox(
-            "Материал из базы",
-            labels,
-            key="ship_material",
-            label_visibility="collapsed",
-        )
-        selected_row = materials_df.iloc[labels.index(selected_label)]
+        selected_row = pick_material_row(materials_df, key="ship_material_id")
         purchase_unit = str(selected_row["Единица закупки"])
         unit_key = f"ship_add_unit_{int(selected_row['ID'])}"
         st.session_state.setdefault(unit_key, purchase_unit)
@@ -878,7 +956,7 @@ with tab_ship:
                     for line in lines
                 ]
             ).astype(str)
-            st.dataframe(table, hide_index=True, width="stretch")
+            show_fit_table(table)
             compact_cards(
                 [
                     ("Вес отгрузки", f"{qty_fmt(totals['weight_tons'])} т"),
@@ -1087,7 +1165,7 @@ with tab_saved:
                             for line in saved_lines
                         ]
                     ).astype(str)
-                    st.dataframe(preview, hide_index=True, width="stretch")
+                    show_fit_table(preview)
                     saved_pdf = build_quote_pdf(
                         saved_lines,
                         order_totals(saved_lines),

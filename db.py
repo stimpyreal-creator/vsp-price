@@ -205,6 +205,55 @@ def save_settings(quote_currency: str, uah_per_unit: float) -> None:
         conn.commit()
 
 
+MATERIALS_COL_WIDTH_KEYS = (
+    "Название",
+    "Цена закупки",
+    "Состояние",
+    "Единица закупки",
+    "Вес 1 шт, кг",
+)
+MATERIALS_COL_WIDTHS_KEY = "materials_col_widths"
+
+
+def get_materials_col_widths() -> dict[str, int]:
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT value FROM settings WHERE key = ?",
+            (MATERIALS_COL_WIDTHS_KEY,),
+        ).fetchone()
+    if not row:
+        return {}
+    try:
+        raw = json.loads(row[0] if not isinstance(row, sqlite3.Row) else row["value"])
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    result: dict[str, int] = {}
+    for key in MATERIALS_COL_WIDTH_KEYS:
+        if key not in raw:
+            continue
+        try:
+            result[key] = int(max(60, min(800, int(raw[key]))))
+        except (TypeError, ValueError):
+            continue
+    return result
+
+
+def save_materials_col_widths(widths: dict[str, int]) -> None:
+    payload = {
+        key: int(max(60, min(800, int(widths[key]))))
+        for key in MATERIALS_COL_WIDTH_KEYS
+        if key in widths
+    }
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+            (MATERIALS_COL_WIDTHS_KEY, json.dumps(payload, ensure_ascii=False)),
+        )
+        conn.commit()
+
+
 def list_materials() -> pd.DataFrame:
     with get_connection() as conn:
         df = pd.read_sql_query(

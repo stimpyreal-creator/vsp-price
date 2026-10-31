@@ -10,6 +10,7 @@ import pandas as pd
 import streamlit as st
 
 import calculations as calc_mod
+import db as db_mod
 from calculations import (
     ceil_int,
     order_totals,
@@ -17,6 +18,10 @@ from calculations import (
     shipment_lines,
     shipment_totals,
 )
+
+if not hasattr(db_mod, "get_materials_col_widths"):
+    db_mod = importlib.reload(db_mod)
+
 from db import (
     CONDITIONS,
     QUOTE_CURRENCIES,
@@ -33,6 +38,9 @@ from db import (
     save_order,
     save_settings,
 )
+
+get_materials_col_widths = db_mod.get_materials_col_widths
+save_materials_col_widths = db_mod.save_materials_col_widths
 from auth import require_login
 from pdf_export import build_quote_pdf, build_settlement_pdf, money, qty_fmt
 
@@ -365,6 +373,19 @@ def clip_text(text: object, limit: int = 36) -> str:
     return raw[: limit - 1].rstrip() + "…"
 
 
+def text_col_width(
+    header: str,
+    values,
+    *,
+    pad: int = 32,
+    px: int = 8,
+    min_px: int = 72,
+    max_px: int = 240,
+) -> int:
+    longest = max(len(str(header)), *(len(str(v)) for v in values))
+    return int(min(max_px, max(min_px, longest * px + pad)))
+
+
 def show_fit_table(frame: pd.DataFrame) -> None:
     config: dict = {}
     if "Материал" in frame.columns:
@@ -493,28 +514,60 @@ with tab_admin:
         st.info("База пуста. Добавьте первую позицию.")
     else:
         st.caption("Правите название, состояние, единицу, цену и вес в таблице, затем сохраните.")
+        price_shown = [f"{int(v)} грн" for v in materials_df["Цена закупки"]]
+        weight_shown = [f"{float(v):.3f}" for v in materials_df["Вес 1 шт, кг"]]
+        auto_widths = {
+            "Название": 240,
+            "Цена закупки": text_col_width("Цена закупки, грн", price_shown),
+            "Состояние": text_col_width("Состояние", materials_df["Состояние"]),
+            "Единица закупки": text_col_width(
+                "Единица закупки", materials_df["Единица закупки"]
+            ),
+            "Вес 1 шт, кг": text_col_width("Вес 1 шт, кг", weight_shown),
+        }
+        saved_widths = get_materials_col_widths()
+        col_widths = {key: saved_widths.get(key, auto) for key, auto in auto_widths.items()}
         edited = st.data_editor(
             materials_df,
             hide_index=True,
             width="stretch",
             num_rows="fixed",
+            column_order=[
+                "Название",
+                "Цена закупки",
+                "Состояние",
+                "Единица закупки",
+                "Вес 1 шт, кг",
+            ],
             column_config={
-                "ID": st.column_config.NumberColumn("ID", disabled=True, width="small"),
-                "Название": st.column_config.TextColumn("Название", required=True, width="large"),
-                "Состояние": st.column_config.SelectboxColumn(
-                    "Состояние", options=list(CONDITIONS), required=True
-                ),
-                "Единица закупки": st.column_config.SelectboxColumn(
-                    "Единица закупки", options=list(UNITS), required=True
+                "ID": st.column_config.NumberColumn("ID", disabled=True),
+                "Название": st.column_config.TextColumn(
+                    "Название", required=True, width=col_widths["Название"]
                 ),
                 "Цена закупки": st.column_config.NumberColumn(
                     "Цена закупки, грн",
                     min_value=0,
                     format="%d грн",
+                    width=col_widths["Цена закупки"],
                     help="За 1 тонну или за 1 штуку — по единице закупки, в гривнах",
                 ),
+                "Состояние": st.column_config.SelectboxColumn(
+                    "Состояние",
+                    options=list(CONDITIONS),
+                    required=True,
+                    width=col_widths["Состояние"],
+                ),
+                "Единица закупки": st.column_config.SelectboxColumn(
+                    "Единица закупки",
+                    options=list(UNITS),
+                    required=True,
+                    width=col_widths["Единица закупки"],
+                ),
                 "Вес 1 шт, кг": st.column_config.NumberColumn(
-                    "Вес 1 шт, кг", min_value=0, format="%.3f"
+                    "Вес 1 шт, кг",
+                    min_value=0,
+                    format="%.3f",
+                    width=col_widths["Вес 1 шт, кг"],
                 ),
             },
             key=f"materials_editor_{st.session_state.materials_ver}",
@@ -536,6 +589,36 @@ with tab_admin:
                     st.rerun()
             except Exception as exc:
                 st.error(f"Не удалось сохранить: {exc}")
+
+        with st.expander("Ширина колонок", expanded=False):
+            st.caption(
+                "Число — ширина в пикселях. После «Сохранить ширину» таблица запомнит её."
+            )
+            with st.form("materials_col_widths"):
+                wcols = st.columns(5)
+                labels = [
+                    ("Название", "Название"),
+                    ("Цена закупки", "Цена"),
+                    ("Состояние", "Состояние"),
+                    ("Единица закупки", "Единица"),
+                    ("Вес 1 шт, кг", "Вес"),
+                ]
+                new_widths: dict[str, int] = {}
+                for col, (key, label) in zip(wcols, labels):
+                    new_widths[key] = int(
+                        col.number_input(
+                            label,
+                            min_value=60,
+                            max_value=800,
+                            step=10,
+                            value=int(col_widths[key]),
+                        )
+                    )
+                if st.form_submit_button("Сохранить ширину", width="stretch"):
+                    save_materials_col_widths(new_widths)
+                    st.session_state.materials_ver += 1
+                    st.success("Ширина колонок сохранена.")
+                    st.rerun()
 
         st.markdown("**Удаление**")
         chosen = st.selectbox(

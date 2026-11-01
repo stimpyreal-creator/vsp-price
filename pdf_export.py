@@ -31,35 +31,23 @@ MUTED = colors.HexColor("#5b6775")
 
 
 def _register_fonts() -> tuple[str, str]:
-    """Регистрирует шрифты с гарантированной поддержкой кириллицы на любой ОС."""
+    """Регистрирует кириллические шрифты, находящиеся прямо в папке проекта."""
     registered = set(pdfmetrics.getRegisteredFontNames())
     if "VspSans" in registered and "VspSans-Bold" in registered:
         return "VspSans", "VspSans-Bold"
 
-    # Ищем стандартный кириллический шрифт DejaVu, который идет в комплекте с ReportLab
-    import reportlab
-    rl_dir = Path(reportlab.__file__).parent
-    dejavu_reg = rl_dir / "fonts" / "DejaVuSans.ttf"
-    dejavu_bold = rl_dir / "fonts" / "DejaVuSans-Bold.ttf"
+    # Ищем файлы шрифтов прямо в папке нашего приложения
+    current_dir = Path(__file__).parent
+    local_reg = current_dir / "Arial.ttf"
+    local_bold = current_dir / "Arial-Bold.ttf"
 
-    if dejavu_reg.exists() and dejavu_bold.exists():
-        pdfmetrics.registerFont(TTFont("VspSans", str(dejavu_reg)))
-        pdfmetrics.registerFont(TTFont("VspSans-Bold", str(dejavu_bold)))
+    if local_reg.exists() and local_bold.exists():
+        pdfmetrics.registerFont(TTFont("VspSans", str(local_reg)))
+        pdfmetrics.registerFont(TTFont("VspSans-Bold", str(local_bold)))
         return "VspSans", "VspSans-Bold"
-
-    # Запасной вариант для локальной Windows
-    windows = Path(r"C:\Windows\Fonts")
-    candidates = [
-        (windows / "arial.ttf", windows / "arialbd.ttf"),
-        (windows / "Arial.ttf", windows / "Arialbd.ttf"),
-    ]
-    for regular, bold in candidates:
-        if regular.exists() and bold.exists():
-            pdfmetrics.registerFont(TTFont("VspSans", str(regular)))
-            pdfmetrics.registerFont(TTFont("VspSans-Bold", str(bold)))
-            return "VspSans", "VspSans-Bold"
-            
+        
     return "Helvetica", "Helvetica-Bold"
+
 
 
 

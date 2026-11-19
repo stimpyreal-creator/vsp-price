@@ -7,6 +7,8 @@ from typing import Any
 
 KG_PER_TON = 1000.0
 VAT_PERCENT = 20.0
+# Транспорт, растаможка и накладные вводятся в валюте КП и переводятся в грн по курсу.
+EXTRA_COSTS_IN_FX = True
 
 
 def ceil_int(value: float) -> float:
@@ -81,16 +83,18 @@ def line_economics(
     margin_type: str,
     margin_value: float,
     margin_deduct_percent: float = VAT_PERCENT,
+    extra_cost: float = 0.0,
 ) -> dict[str, float]:
     """Себестоимость, цена продажи и чистая маржа по позиции."""
     purchase_cost = max(float(purchase_cost or 0), 0.0)
     customs_cost = max(float(customs_cost or 0), 0.0)
+    extra_cost = max(float(extra_cost or 0), 0.0)
     tax_percent = max(float(tax_percent or 0), 0.0)
     margin_value = float(margin_value or 0)
     deduct = min(max(float(margin_deduct_percent or 0), 0.0), 100.0)
 
     tax_amount = ceil_int((purchase_cost + customs_cost) * tax_percent / 100.0)
-    cost = ceil_int(purchase_cost + customs_cost + tax_amount)
+    cost = ceil_int(purchase_cost + customs_cost + tax_amount + extra_cost)
 
     if margin_type in ("Валюта", "грн"):
         profit = ceil_int(margin_value)
@@ -124,6 +128,11 @@ def uah_to_fx(amount_uah: float, uah_per_unit: float) -> float:
     return float(amount_uah or 0) / rate
 
 
+def fx_to_uah(amount_fx: float, uah_per_unit: float) -> float:
+    """Валюта КП → гривна. Курс: сколько грн за 1 единицу валюты."""
+    return float(amount_fx or 0) * max(float(uah_per_unit or 0), 0.0)
+
+
 def apply_fx(line: dict[str, Any], uah_per_unit: float) -> dict[str, Any]:
     return {
         **line,
@@ -142,6 +151,11 @@ def recompute_order(
     customs_mode: str,
     uah_per_unit: float = 0.0,
     margin_deduct_percent: float = VAT_PERCENT,
+    transport_cost: float = 0.0,
+    transport_tons: float = 0.0,
+    clearance_cost: float = 0.0,
+    clearance_percent: float = 0.0,
+    overhead_cost: float = 0.0,
 ) -> list[dict[str, Any]]:
     conversions = [
         convert_position(
@@ -153,48 +167,68 @@ def recompute_order(
         )
         for item in items
     ]
-    customs = allocate_customs(
-        [c["weight_tons"] for c in conversions],
-        customs_value,
-        customs_mode,
-    )
+    weights = [c["weight_tons"] for c in conversions]
+    customs = allocate_customs(weights, customs_value, customs_mode)
+    total_weight = sum(weights)
+    tons = max(float(transport_tons or 0), 0.0)
+    transport_uah = fx_to_uah(transport_cost, uah_per_unit)
+    overhead_uah = fx_to_uah(overhead_cost, uah_per_unit)
+    # Ставка за N тонн транспорта: вес заказа / N. 30 т при ставке за 20 т = ×1.5.
+    scale = (total_weight / tons) if tons > 0 else 0.0
+    transports = allocate_customs(weights, transport_uah * scale, "На весь заказ")
+    overheads = allocate_customs(weights, overhead_uah, "На весь заказ")
+    zeros = [0.0 for _ in weights]
 
-    result: list[dict[str, Any]] = []
-    for item, conv, customs_cost in zip(items, conversions, customs):
-        purchase_cost = ceil_int(conv["purchase_cost"])
-        customs_cost = ceil_int(customs_cost)
-        eco = line_economics(
-            purchase_cost,
-            customs_cost,
-            tax_percent,
-            item.get("margin_type", "%"),
-            item.get("margin_value", 0),
-            margin_deduct_percent,
-        )
-        unit_price = selling_unit_price(eco["selling"], item["quantity"])
-        result.append(
-            apply_fx(
-                {
-                    **item,
-                    **conv,
-                    "purchase_cost": purchase_cost,
-                    "customs_cost": customs_cost,
-                    **eco,
-                    "unit_selling": unit_price,
-                },
-                uah_per_unit,
+    def compose(clearances: list[float]) -> list[dict[str, Any]]:
+        result: list[dict[str, Any]] = []
+        for item, conv, customs_cost, transport, clearance, overhead in zip(
+            items, conversions, customs, transports, clearances, overheads
+        ):
+            purchase_cost = ceil_int(conv["purchase_cost"])
+            customs_cost = ceil_int(customs_cost)
+            transport = ceil_int(transport)
+            clearance = ceil_int(clearance)
+            overhead = ceil_int(overhead)
+            extra_cost = transport + clearance + overhead
+            eco = line_economics(
+                purchase_cost,
+                customs_cost,
+                tax_percent,
+                item.get("margin_type", "%"),
+                item.get("margin_value", 0),
+                margin_deduct_percent,
+                extra_cost,
             )
-        )
-    return result
+            unit_price = selling_unit_price(eco["selling"], item["quantity"])
+            result.append(
+                apply_fx(
+                    {
+                        **item,
+                        **conv,
+                        "purchase_cost": purchase_cost,
+                        "customs_cost": customs_cost,
+                        "transport_cost": transport,
+                        "clearance_cost": clearance,
+                        "overhead_cost": overhead,
+                        **eco,
+                        "unit_selling": unit_price,
+                    },
+                    uah_per_unit,
+                )
+            )
+        return result
+
+    lines = compose(zeros)
+    percent = min(max(float(clearance_percent or 0), 0.0), 100.0)
+    if percent <= 0:
+        return lines
+    selling_uah = sum(float(line.get("selling") or 0) for line in lines)
+    clearance_uah = ceil_int(selling_uah * percent / 100.0)
+    return compose(allocate_customs(weights, clearance_uah, "На весь заказ"))
 
 
 def with_exchange_rate(lines: list[dict[str, Any]], uah_per_unit: float) -> list[dict[str, Any]]:
     return [apply_fx(line, uah_per_unit) for line in lines]
-
-
-def fx_to_uah(amount_fx: float, uah_per_unit: float) -> float:
-    """Валюта поступления → гривна. Курс: сколько грн за 1 единицу валюты."""
-    return float(amount_fx or 0) * max(float(uah_per_unit or 0), 0.0)
 
 
 def shipment_lines(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -281,6 +315,9 @@ def order_totals(lines: list[dict[str, Any]]) -> dict[str, float]:
         "weight_tons": sum(line["weight_tons"] for line in lines),
         "purchase_cost": sum(line["purchase_cost"] for line in lines),
         "customs_cost": sum(line["customs_cost"] for line in lines),
+        "transport_cost": sum(line.get("transport_cost", 0.0) for line in lines),
+        "clearance_cost": sum(line.get("clearance_cost", 0.0) for line in lines),
+        "overhead_cost": sum(line.get("overhead_cost", 0.0) for line in lines),
         "tax_amount": sum(line["tax_amount"] for line in lines),
         "cost": sum(line["cost"] for line in lines),
         "selling": sum(line["selling"] for line in lines),

@@ -11,16 +11,15 @@ import streamlit as st
 
 import calculations as calc_mod
 import db as db_mod
-from calculations import (
-    ceil_int,
-    order_totals,
-    settle_incoming,
-    shipment_lines,
-    shipment_totals,
-)
 
-if not hasattr(db_mod, "get_materials_col_widths"):
-    db_mod = importlib.reload(db_mod)
+calc_mod = importlib.reload(calc_mod)
+db_mod = importlib.reload(db_mod)
+
+ceil_int = calc_mod.ceil_int
+order_totals = calc_mod.order_totals
+settle_incoming = calc_mod.settle_incoming
+shipment_lines = calc_mod.shipment_lines
+shipment_totals = calc_mod.shipment_totals
 
 from db import (
     CONDITIONS,
@@ -41,6 +40,9 @@ from db import (
 
 get_materials_col_widths = db_mod.get_materials_col_widths
 save_materials_col_widths = db_mod.save_materials_col_widths
+save_order = db_mod.save_order
+init_db = db_mod.init_db
+get_saved_order = db_mod.get_saved_order
 from auth import require_login
 from pdf_export import build_quote_pdf, build_settlement_pdf, money, qty_fmt
 
@@ -185,6 +187,11 @@ def init_state() -> None:
     if not st.session_state.get("defaults_margin_deduct20"):
         st.session_state.margin_deduct_percent = 20.0
         st.session_state.defaults_margin_deduct20 = True
+    st.session_state.setdefault("transport_cost", 0.0)
+    st.session_state.setdefault("transport_tons", 20.0)
+    st.session_state.setdefault("clearance_cost", 0.0)
+    st.session_state.setdefault("clearance_percent", 0.0)
+    st.session_state.setdefault("overhead_cost", 0.0)
     st.session_state.setdefault("default_margin_type", "%")
     st.session_state.setdefault("default_margin_value", 15.0)
     st.session_state.setdefault("materials_ver", 0)
@@ -227,6 +234,10 @@ def apply_pending_saved_order() -> None:
     st.session_state.margin_deduct_percent = float(payload.get("margin_deduct_percent", 20.0))
     st.session_state.customs_mode = payload["customs_mode"]
     st.session_state.customs_value = float(payload["customs_value"])
+    st.session_state.transport_cost = float(payload.get("transport_cost", 0) or 0)
+    st.session_state.transport_tons = float(payload.get("transport_tons", 20) or 20)
+    st.session_state.clearance_percent = float(payload.get("clearance_percent", 0) or 0)
+    st.session_state.overhead_cost = float(payload.get("overhead_cost", 0) or 0)
     st.session_state.fx_currency = payload["quote_currency"]
     st.session_state.fx_rate = float(payload["uah_per_unit"])
     st.session_state.kp_client = payload.get("client_name", "")
@@ -306,6 +317,16 @@ def sync_order_from_widgets() -> None:
             item["margin_value"] = float(st.session_state[key])
 
 
+def order_extra_kwargs(source=None) -> dict:
+    src = source if source is not None else st.session_state
+    return {
+        "transport_cost": float(src.get("transport_cost", 0) or 0),
+        "transport_tons": float(src.get("transport_tons", 0) or 0),
+        "clearance_percent": float(src.get("clearance_percent", 0) or 0),
+        "overhead_cost": float(src.get("overhead_cost", 0) or 0),
+    }
+
+
 def run_recompute(
     items: list,
     tax_percent: float,
@@ -313,14 +334,14 @@ def run_recompute(
     customs_mode: str,
     uah_per_unit: float,
     margin_deduct_percent: float | None = None,
+    extra_costs: dict | None = None,
 ) -> list[dict]:
-    global calc_mod
+    global calc_mod, order_totals, ceil_int
+    calc_mod = importlib.reload(calc_mod)
+    order_totals = calc_mod.order_totals
+    ceil_int = calc_mod.ceil_int
     fn = calc_mod.recompute_order
     params = inspect.signature(fn).parameters
-    if "margin_deduct_percent" not in params:
-        calc_mod = importlib.reload(calc_mod)
-        fn = calc_mod.recompute_order
-        params = inspect.signature(fn).parameters
     extra: dict = {}
     if "margin_deduct_percent" in params:
         extra["margin_deduct_percent"] = float(
@@ -328,6 +349,10 @@ def run_recompute(
             if margin_deduct_percent is None
             else margin_deduct_percent
         )
+    costs = extra_costs if extra_costs is not None else order_extra_kwargs()
+    for name in ("transport_cost", "transport_tons", "clearance_percent", "overhead_cost"):
+        if name in params:
+            extra[name] = float(costs.get(name, 0) or 0)
     return fn(items, tax_percent, customs_value, customs_mode, uah_per_unit, **extra)
 
 
@@ -690,6 +715,38 @@ with tab_calc:
                 format="%.0f",
                 key="customs_value",
             )
+            quote = st.session_state.fx_currency
+            t1, t2 = st.columns(2)
+            t1.number_input(
+                f"Стоимость транспортировки, {quote}",
+                min_value=0.0,
+                step=1.0,
+                format="%.2f",
+                key="transport_cost",
+            )
+            t2.number_input(
+                "За сколько тонн эта стоимость",
+                min_value=0.001,
+                step=0.5,
+                format="%.3f",
+                key="transport_tons",
+            )
+            e1, e2 = st.columns(2)
+            e1.number_input(
+                "Растаможка, % от цены продажи",
+                min_value=0.0,
+                max_value=100.0,
+                step=0.1,
+                format="%.2f",
+                key="clearance_percent",
+            )
+            e2.number_input(
+                f"Стоимость накладных расходов, {quote}",
+                min_value=0.0,
+                step=1.0,
+                format="%.2f",
+                key="overhead_cost",
+            )
             st.number_input(
                 "Вычет от маржи, %",
                 min_value=0.0,
@@ -837,9 +894,20 @@ with tab_calc:
                     ("Маржа", money(margin_net_uah(totals), "UAH")),
                 ]
             )
+            tons_ref = float(st.session_state.transport_tons or 0)
+            order_tons = float(totals.get("weight_tons", 0) or 0)
+            rate = float(st.session_state.fx_rate)
             st.caption(
+                f"Транспорт: {money(totals.get('transport_cost', 0), 'UAH')} "
+                f"← {money(st.session_state.transport_cost, quote)} за {qty_fmt(tons_ref)} т"
+                f"{', × ' + qty_fmt(order_tons) + '/' + qty_fmt(tons_ref) + ' т' if tons_ref > 0 else ''}"
+                f", курс {rate:.4f}. "
+                f"Растаможка: {money(totals.get('clearance_cost', 0), 'UAH')} "
+                f"← {float(st.session_state.clearance_percent):.2f}% от цены продажи. "
+                f"Накладные: {money(totals.get('overhead_cost', 0), 'UAH')} "
+                f"← {money(st.session_state.overhead_cost, quote)}. "
                 f"Маржа в валюте КП: {money(margin_net_fx(totals), quote)}. "
-                f"Курс 1 {quote} = {st.session_state.fx_rate:.4f} грн."
+                f"Курс 1 {quote} = {rate:.4f} грн."
             )
 
             table = pd.DataFrame(
@@ -965,6 +1033,7 @@ with tab_calc:
                         client_name=st.session_state.kp_client,
                         note=st.session_state.kp_note,
                         margin_deduct_percent=st.session_state.margin_deduct_percent,
+                        **order_extra_kwargs(),
                     )
                     st.session_state.opened_saved_id = order_id
                     st.session_state.flash = f"Расчёт сохранён под №{order_id}."
@@ -1224,6 +1293,12 @@ with tab_saved:
                 )
                 full = get_saved_order(int(row["id"]))
                 if full:
+                    st.caption(
+                        f"Транспорт: {money(full.get('transport_cost', 0), full['quote_currency'])} "
+                        f"за {qty_fmt(float(full.get('transport_tons', 0) or 0))} т. "
+                        f"Растаможка: {float(full.get('clearance_percent', 0) or 0):.2f}% от цены продажи. "
+                        f"Накладные: {money(full.get('overhead_cost', 0), full['quote_currency'])}."
+                    )
                     saved_lines = run_recompute(
                         full["items"],
                         full["tax_percent"],
@@ -1231,6 +1306,7 @@ with tab_saved:
                         full["customs_mode"],
                         full["uah_per_unit"],
                         float(full.get("margin_deduct_percent", 20.0)),
+                        extra_costs=order_extra_kwargs(full),
                     )
                     preview = pd.DataFrame(
                         [

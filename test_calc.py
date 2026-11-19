@@ -104,6 +104,74 @@ def test_order_and_pdf():
     assert weight_fmt(totals["weight_tons"]) == "1.625 т"
 
 
+def test_order_extra_costs():
+    items = [
+        {
+            "name": "Рельс Р65",
+            "condition": "Новое",
+            "quantity": 10,
+            "input_unit": "Тонна",
+            "purchase_unit": "Тонна",
+            "purchase_price": 1000,
+            "piece_weight_kg": 1000,
+            "margin_type": "%",
+            "margin_value": 0,
+        }
+    ]
+    lines = recompute_order(
+        items,
+        tax_percent=0,
+        customs_value=0,
+        customs_mode="На весь заказ",
+        uah_per_unit=40,
+        transport_cost=500,
+        transport_tons=20,
+        clearance_percent=10,
+        overhead_cost=12.5,
+    )
+    totals = order_totals(lines)
+    # закупка 10×1000; транспорт 500 USD / 20 т × 10 т × 40 = 10000 грн;
+    # накладные 12.5 USD × 40 = 500 грн; цена продажи без растаможки 20500;
+    # растаможка 10% = 2050 грн
+    assert abs(totals["transport_cost"] - 10000) < 1e-6
+    assert abs(totals["overhead_cost"] - 500) < 1e-6
+    assert abs(totals["clearance_cost"] - 2050) < 1e-6
+    assert abs(totals["cost"] - 22550) < 1e-6
+    heavy = [
+        {**items[0], "quantity": 30},
+    ]
+    heavy_totals = order_totals(
+        recompute_order(
+            heavy,
+            tax_percent=0,
+            customs_value=0,
+            customs_mode="На весь заказ",
+            uah_per_unit=40,
+            transport_cost=500,
+            transport_tons=20,
+            clearance_percent=10,
+        )
+    )
+    # 30 т: закупка 30000 + транспорт 30000 = 60000; растаможка 10% = 6000 грн
+    assert abs(heavy_totals["transport_cost"] - 30000) < 1e-6
+    assert abs(heavy_totals["clearance_cost"] - 6000) < 1e-6
+    none = recompute_order(items, 0, 0, "На весь заказ", 40)
+    assert abs(order_totals(none)["cost"] - 10000) < 1e-6
+    rate_only = order_totals(
+        recompute_order(
+            [{**items[0], "quantity": 20}],
+            tax_percent=0,
+            customs_value=0,
+            customs_mode="На весь заказ",
+            uah_per_unit=41.5,
+            transport_cost=100,
+            transport_tons=20,
+        )
+    )
+    # 100 USD × 41.5 грн × 20/20 т = 4150 грн
+    assert abs(rate_only["transport_cost"] - 4150) < 1e-6
+
+
 def test_save_and_reload_order():
     original = dbmod.DB_PATH
     dbmod.DB_PATH = Path(tempfile.mkdtemp()) / "test_vsp.db"
@@ -205,6 +273,7 @@ if __name__ == "__main__":
     test_margin_currency()
     test_uah_to_fx()
     test_order_and_pdf()
+    test_order_extra_costs()
     test_save_and_reload_order()
     test_settle_incoming()
     test_shipment_and_settlement_pdf()

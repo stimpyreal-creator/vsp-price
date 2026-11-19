@@ -153,7 +153,12 @@ def init_db() -> None:
                 profit_uah REAL NOT NULL DEFAULT 0,
                 cost_uah REAL NOT NULL DEFAULT 0,
                 items_json TEXT NOT NULL,
-                margin_deduct_percent REAL NOT NULL DEFAULT 20
+                margin_deduct_percent REAL NOT NULL DEFAULT 20,
+                transport_cost REAL NOT NULL DEFAULT 0,
+                transport_tons REAL NOT NULL DEFAULT 20,
+                clearance_cost REAL NOT NULL DEFAULT 0,
+                clearance_percent REAL NOT NULL DEFAULT 0,
+                overhead_cost REAL NOT NULL DEFAULT 0
             )
             """
         )
@@ -167,7 +172,17 @@ def _ensure_saved_order_columns(conn: sqlite3.Connection) -> None:
         conn.execute(
             "ALTER TABLE saved_orders ADD COLUMN margin_deduct_percent REAL NOT NULL DEFAULT 20"
         )
-        conn.commit()
+    extras = {
+        "transport_cost": "REAL NOT NULL DEFAULT 0",
+        "transport_tons": "REAL NOT NULL DEFAULT 20",
+        "clearance_cost": "REAL NOT NULL DEFAULT 0",
+        "clearance_percent": "REAL NOT NULL DEFAULT 0",
+        "overhead_cost": "REAL NOT NULL DEFAULT 0",
+    }
+    for name, spec in extras.items():
+        if name not in cols:
+            conn.execute(f"ALTER TABLE saved_orders ADD COLUMN {name} {spec}")
+    conn.commit()
 
 
 def get_settings() -> dict[str, Any]:
@@ -379,6 +394,11 @@ def save_order(
     client_name: str = "",
     note: str = "",
     margin_deduct_percent: float = 20.0,
+    transport_cost: float = 0.0,
+    transport_tons: float = 20.0,
+    clearance_cost: float = 0.0,
+    clearance_percent: float = 0.0,
+    overhead_cost: float = 0.0,
 ) -> int:
     if not items:
         raise ValueError("Нельзя сохранить пустой заказ")
@@ -392,8 +412,9 @@ def save_order(
                 tax_percent, customs_mode, customs_value,
                 quote_currency, uah_per_unit,
                 weight_tons, selling_fx, selling_uah, profit_uah, cost_uah,
-                items_json, margin_deduct_percent
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                items_json, margin_deduct_percent,
+                transport_cost, transport_tons, clearance_cost, clearance_percent, overhead_cost
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 created_at,
@@ -412,6 +433,11 @@ def save_order(
                 float(totals.get("cost", 0)),
                 payload,
                 float(margin_deduct_percent),
+                float(transport_cost),
+                float(transport_tons),
+                float(clearance_cost),
+                float(clearance_percent),
+                float(overhead_cost),
             ),
         )
         conn.commit()

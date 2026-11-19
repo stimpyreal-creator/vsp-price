@@ -117,6 +117,19 @@ st.markdown(
         font-size: 0.82rem;
       }
       [data-testid="stCaptionContainer"] p { font-size: 0.76rem !important; }
+      [data-testid="stSelectbox"] [data-baseweb="select"] > div {
+        max-width: 100%;
+        width: 100%;
+      }
+      [data-testid="stSelectbox"] [data-baseweb="select"] span {
+        max-width: none !important;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      ul[role="listbox"] li {
+        white-space: normal;
+      }
       .stButton button { min-height: 2rem; }
       .mini-row {
         display: grid;
@@ -273,9 +286,8 @@ def pick_material_row(materials_df: pd.DataFrame, key: str | None = None) -> pd.
     chosen = st.selectbox(
         "Материал из базы",
         ids,
-        format_func=lambda i: clip_text(
-            material_label(materials_df.loc[materials_df["ID"] == i].iloc[0]),
-            48,
+        format_func=lambda i: material_label(
+            materials_df.loc[materials_df["ID"] == i].iloc[0]
         ),
         label_visibility="collapsed",
         **kwargs,

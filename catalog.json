@@ -57,14 +57,6 @@
       "piece_weight_kg": 23.78
     },
     {
-      "id": 8,
-      "name": "Подкладка Д50",
-      "condition": "Новое",
-      "purchase_unit": "Тонна",
-      "purchase_price": 40000.0,
-      "piece_weight_kg": 6.2
-    },
-    {
       "id": 9,
       "name": "Подкладка Д65",
       "condition": "Новое",

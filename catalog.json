@@ -122,18 +122,18 @@
     },
     {
       "id": 18,
-      "name": "Прокладка ЦП-328",
+      "name": "Прокладка ЦП-328 для жб шпал",
       "condition": "Новое",
       "purchase_unit": "Штука",
-      "purchase_price": 45.0,
+      "purchase_price": 36.0,
       "piece_weight_kg": 0.64
     },
     {
       "id": 19,
-      "name": "Прокладка подрельсовая ОП-356",
+      "name": "Прокладка подрельсовая ОП-356 для жб шпал",
       "condition": "Новое",
       "purchase_unit": "Штука",
-      "purchase_price": 25.0,
+      "purchase_price": 18.0,
       "piece_weight_kg": 0.254
     },
     {

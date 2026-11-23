@@ -1,0 +1,228 @@
+{
+  "materials": [
+    {
+      "id": 1,
+      "name": "Рельс Р65, 12,5 м",
+      "condition": "Новое",
+      "purchase_unit": "Тонна",
+      "purchase_price": 45000.0,
+      "piece_weight_kg": 811.0
+    },
+    {
+      "id": 2,
+      "name": "Рельс Р65, 12,5 м",
+      "condition": "БУ",
+      "purchase_unit": "Тонна",
+      "purchase_price": 32000.0,
+      "piece_weight_kg": 811.0
+    },
+    {
+      "id": 3,
+      "name": "Рельс Р50, 12,5 м",
+      "condition": "Новое",
+      "purchase_unit": "Тонна",
+      "purchase_price": 45000.0,
+      "piece_weight_kg": 647.5
+    },
+    {
+      "id": 4,
+      "name": "Рельс Р50, 12,5 м",
+      "condition": "БУ",
+      "purchase_unit": "Тонна",
+      "purchase_price": 32000.0,
+      "piece_weight_kg": 647.5
+    },
+    {
+      "id": 5,
+      "name": "Накладка Р50",
+      "condition": "Новое",
+      "purchase_unit": "Тонна",
+      "purchase_price": 50000.0,
+      "piece_weight_kg": 18.77
+    },
+    {
+      "id": 6,
+      "name": "Накладка 1Р-65",
+      "condition": "Новое",
+      "purchase_unit": "Тонна",
+      "purchase_price": 50000.0,
+      "piece_weight_kg": 29.5
+    },
+    {
+      "id": 7,
+      "name": "Накладка 2Р-65",
+      "condition": "Новое",
+      "purchase_unit": "Тонна",
+      "purchase_price": 50000.0,
+      "piece_weight_kg": 23.78
+    },
+    {
+      "id": 8,
+      "name": "Подкладка Д50",
+      "condition": "Новое",
+      "purchase_unit": "Тонна",
+      "purchase_price": 40000.0,
+      "piece_weight_kg": 6.2
+    },
+    {
+      "id": 9,
+      "name": "Подкладка Д65",
+      "condition": "Новое",
+      "purchase_unit": "Тонна",
+      "purchase_price": 50000.0,
+      "piece_weight_kg": 7.66
+    },
+    {
+      "id": 10,
+      "name": "Болт стыковой м24*150 в сборе",
+      "condition": "Новое",
+      "purchase_unit": "Тонна",
+      "purchase_price": 80000.0,
+      "piece_weight_kg": 0.959
+    },
+    {
+      "id": 11,
+      "name": "Болт стыковой м27*160 в сборе",
+      "condition": "Новое",
+      "purchase_unit": "Тонна",
+      "purchase_price": 80000.0,
+      "piece_weight_kg": 1.13
+    },
+    {
+      "id": 12,
+      "name": "Болт закладной м22*175 в сборе",
+      "condition": "Новое",
+      "purchase_unit": "Тонна",
+      "purchase_price": 80000.0,
+      "piece_weight_kg": 0.881
+    },
+    {
+      "id": 13,
+      "name": "Болт клеммный м22*75 в сборе",
+      "condition": "Новое",
+      "purchase_unit": "Тонна",
+      "purchase_price": 80000.0,
+      "piece_weight_kg": 0.591
+    },
+    {
+      "id": 14,
+      "name": "Костыль 16*16*165",
+      "condition": "Новое",
+      "purchase_unit": "Тонна",
+      "purchase_price": 70000.0,
+      "piece_weight_kg": 0.383
+    },
+    {
+      "id": 15,
+      "name": "Шуруп 24x170",
+      "condition": "Новое",
+      "purchase_unit": "Тонна",
+      "purchase_price": 110000.0,
+      "piece_weight_kg": 0.56
+    },
+    {
+      "id": 16,
+      "name": "Переводной механизм флюгарка",
+      "condition": "Новое",
+      "purchase_unit": "Штука",
+      "purchase_price": 35000.0,
+      "piece_weight_kg": 150.0
+    },
+    {
+      "id": 17,
+      "name": "Шайба М27",
+      "condition": "Новое",
+      "purchase_unit": "Тонна",
+      "purchase_price": 130000.0,
+      "piece_weight_kg": 0.09
+    },
+    {
+      "id": 18,
+      "name": "Прокладка ЦП-328",
+      "condition": "Новое",
+      "purchase_unit": "Штука",
+      "purchase_price": 45.0,
+      "piece_weight_kg": 0.64
+    },
+    {
+      "id": 19,
+      "name": "Прокладка подрельсовая ОП-356",
+      "condition": "Новое",
+      "purchase_unit": "Штука",
+      "purchase_price": 25.0,
+      "piece_weight_kg": 0.254
+    },
+    {
+      "id": 20,
+      "name": "Стрелочный перевод Р65 1/9 2434 базовая",
+      "condition": "Новое",
+      "purchase_unit": "Штука",
+      "purchase_price": 1200000.0,
+      "piece_weight_kg": 12000.0
+    },
+    {
+      "id": 21,
+      "name": "Стрелочный перевод Р65 1/9 2434 полная",
+      "condition": "Новое",
+      "purchase_unit": "Тонна",
+      "purchase_price": 1400000.0,
+      "piece_weight_kg": 12500.0
+    },
+    {
+      "id": 22,
+      "name": "Стрелочный перевод Р65 1/7 Д822 полная",
+      "condition": "Новое",
+      "purchase_unit": "Штука",
+      "purchase_price": 1000000.0,
+      "piece_weight_kg": 8200.0
+    },
+    {
+      "id": 23,
+      "name": "Рамный рельс с остряком для СП Р65 1/9",
+      "condition": "Новое",
+      "purchase_unit": "Штука",
+      "purchase_price": 260000.0,
+      "piece_weight_kg": 1000.0
+    },
+    {
+      "id": 24,
+      "name": "Рельс крестовины с контррельсом Р65 1/9",
+      "condition": "Новое",
+      "purchase_unit": "Штука",
+      "purchase_price": 100000.0,
+      "piece_weight_kg": 1500.0
+    },
+    {
+      "id": 25,
+      "name": "Рамный рельс с остряком для СП Р65 1/11",
+      "condition": "БУ",
+      "purchase_unit": "Штука",
+      "purchase_price": 150000.0,
+      "piece_weight_kg": 1000.0
+    },
+    {
+      "id": 26,
+      "name": "Крестовина Р65 1/9",
+      "condition": "Новое",
+      "purchase_unit": "Штука",
+      "purchase_price": 260000.0,
+      "piece_weight_kg": 1230.0
+    },
+    {
+      "id": 27,
+      "name": "Крестовина Р65 1/11",
+      "condition": "БУ",
+      "purchase_unit": "Штука",
+      "purchase_price": 150000.0,
+      "piece_weight_kg": 1400.0
+    },
+    {
+      "id": 28,
+      "name": "Тяга стальная межостряковая номер 1-2",
+      "condition": "Новое",
+      "purchase_unit": "Штука",
+      "purchase_price": 5000.0,
+      "piece_weight_kg": 17.0
+    }
+  ]
+}

@@ -62,7 +62,58 @@ def _live_seed_hash() -> str | None:
         return None
 
 
+def replace_catalog_rows(rows: list[dict[str, Any]]) -> None:
+    """Полностью заменяет таблицу materials из catalog.json."""
+    cleaned: list[tuple[Any, ...]] = []
+    for row in rows:
+        name = str(row.get("name") or "").strip()
+        condition = str(row.get("condition") or "")
+        unit = str(row.get("purchase_unit") or "")
+        if not name or condition not in CONDITIONS or unit not in UNITS:
+            continue
+        try:
+            material_id = int(row["id"])
+            price = float(row.get("purchase_price") or 0)
+            weight = float(row.get("piece_weight_kg") or 0)
+        except (KeyError, TypeError, ValueError):
+            continue
+        if price < 0 or weight < 0:
+            continue
+        cleaned.append((material_id, name, condition, unit, price, weight))
+    if not cleaned:
+        return
+    with get_connection() as conn:
+        conn.execute("DELETE FROM materials")
+        conn.executemany(
+            """
+            INSERT INTO materials (id, name, condition, purchase_unit, purchase_price, piece_weight_kg)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            cleaned,
+        )
+        max_id = max(item[0] for item in cleaned)
+        try:
+            conn.execute("DELETE FROM sqlite_sequence WHERE name = 'materials'")
+            conn.execute(
+                "INSERT INTO sqlite_sequence (name, seq) VALUES ('materials', ?)",
+                (max_id,),
+            )
+        except sqlite3.OperationalError:
+            pass
+        conn.commit()
+
+
+def _persist_catalog() -> None:
+    from catalog import persist_catalog
+
+    persist_catalog()
+
+
 def _apply_seed_copy() -> None:
+    from catalog import catalog_path
+
+    if catalog_path().exists():
+        return
     if not SEED_DB_PATH.exists():
         return
     digest = _seed_digest()
@@ -105,7 +156,9 @@ def init_db() -> None:
             """
         )
         count = conn.execute("SELECT COUNT(*) FROM materials").fetchone()[0]
-        if count == 0:
+        from catalog import catalog_path
+
+        if count == 0 and not catalog_path().exists():
             conn.executemany(
                 """
                 INSERT INTO materials (name, condition, purchase_unit, purchase_price, piece_weight_kg)
@@ -164,6 +217,9 @@ def init_db() -> None:
         )
         conn.commit()
         _ensure_saved_order_columns(conn)
+    from catalog import apply_catalog_file
+
+    apply_catalog_file()
 
 
 def _ensure_saved_order_columns(conn: sqlite3.Connection) -> None:
@@ -312,7 +368,9 @@ def add_material(
             (name.strip(), condition, purchase_unit, purchase_price, piece_weight_kg),
         )
         conn.commit()
-        return int(cur.lastrowid)
+        material_id = int(cur.lastrowid)
+    _persist_catalog()
+    return material_id
 
 
 def update_material(
@@ -340,12 +398,14 @@ def update_material(
             ),
         )
         conn.commit()
+    _persist_catalog()
 
 
 def delete_material(material_id: int) -> None:
     with get_connection() as conn:
         conn.execute("DELETE FROM materials WHERE id = ?", (material_id,))
         conn.commit()
+    _persist_catalog()
 
 
 def replace_from_dataframe(df: pd.DataFrame) -> None:
@@ -380,6 +440,7 @@ def replace_from_dataframe(df: pd.DataFrame) -> None:
         for material_id in stale:
             conn.execute("DELETE FROM materials WHERE id = ?", (material_id,))
         conn.commit()
+    _persist_catalog()
 
 
 def save_order(

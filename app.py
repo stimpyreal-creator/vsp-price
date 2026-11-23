@@ -525,6 +525,17 @@ with tab_admin:
                 st.rerun()
 
     materials_df = list_materials()
+    from catalog import github_configured
+
+    if not github_configured():
+        st.warning(
+            "В облаке база на диске стирается при перезапуске. "
+            "Чтобы материалы сохранялись всегда, в Streamlit → Settings → Secrets добавьте:\n\n"
+            "[github]\n"
+            'token = "github_pat_..."\n\n'
+            "Токен GitHub с правом записи в репозиторий stimpyreal-creator/vsp-price. "
+            "После этого снова нажмите «Сохранить изменения в таблице»."
+        )
 
     with st.expander("Добавить материал", expanded=materials_df.empty):
         with st.form("add_material", clear_on_submit=True):

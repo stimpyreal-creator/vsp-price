@@ -172,6 +172,26 @@ def test_order_extra_costs():
     assert abs(rate_only["transport_cost"] - 4150) < 1e-6
 
 
+def test_catalog_roundtrip():
+    original = dbmod.DB_PATH
+    tmp = Path(tempfile.mkdtemp())
+    dbmod.DB_PATH = tmp / "vsp.db"
+    try:
+        init_db()
+        from db import add_material, list_materials, replace_catalog_rows
+        from catalog import apply_catalog_file, payload_from_db, write_catalog_file
+
+        add_material("Тестовый рельс", "Новое", "Тонна", 1000, 800)
+        payload = payload_from_db()
+        write_catalog_file(payload)
+        replace_catalog_rows([])
+        apply_catalog_file()
+        names = list_materials()["Название"].tolist()
+        assert "Тестовый рельс" in names
+    finally:
+        dbmod.DB_PATH = original
+
+
 def test_save_and_reload_order():
     original = dbmod.DB_PATH
     dbmod.DB_PATH = Path(tempfile.mkdtemp()) / "test_vsp.db"
@@ -274,6 +294,7 @@ if __name__ == "__main__":
     test_uah_to_fx()
     test_order_and_pdf()
     test_order_extra_costs()
+    test_catalog_roundtrip()
     test_save_and_reload_order()
     test_settle_incoming()
     test_shipment_and_settlement_pdf()

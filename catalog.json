@@ -279,6 +279,14 @@
       "purchase_unit": "Штука",
       "purchase_price": 100000.0,
       "piece_weight_kg": 1400.0
+    },
+    {
+      "id": 37,
+      "name": "Подкладка для деревянной шпалы Р-50 с хранения",
+      "condition": "БУ",
+      "purchase_unit": "Тонна",
+      "purchase_price": 45000.0,
+      "piece_weight_kg": 6.2
     }
   ]
 }

@@ -303,6 +303,14 @@
       "purchase_unit": "Тонна",
       "purchase_price": 70000.0,
       "piece_weight_kg": 6.9
+    },
+    {
+      "id": 40,
+      "name": "Подкладка для железобетонной шпалы Р-65 новая",
+      "condition": "Новое",
+      "purchase_unit": "Тонна",
+      "purchase_price": 60000.0,
+      "piece_weight_kg": 7.0
     }
   ]
 }

@@ -215,6 +215,14 @@
       "purchase_unit": "Штука",
       "purchase_price": 5000.0,
       "piece_weight_kg": 17.0
+    },
+    {
+      "id": 29,
+      "name": "Стрелочный перевод Р-65 1/9 (б/у, до 2мм, остряк 6515)",
+      "condition": "БУ",
+      "purchase_unit": "Штука",
+      "purchase_price": 800000.0,
+      "piece_weight_kg": 12000.0
     }
   ]
 }

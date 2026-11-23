@@ -260,6 +260,132 @@ def build_quote_pdf(
     return buffer.getvalue()
 
 
+def build_price_list_pdf(
+    lines: list[dict[str, Any]],
+    quote_currency: str = "USD",
+) -> bytes:
+    """Прайс: только товар, единица измерения и цена продажи."""
+    regular, bold = _register_fonts()
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=16 * mm,
+        rightMargin=16 * mm,
+        topMargin=16 * mm,
+        bottomMargin=16 * mm,
+        title="Прайс-лист",
+        author="Калькулятор ВСП",
+    )
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        "PriceTitle",
+        parent=styles["Title"],
+        fontName=bold,
+        fontSize=16,
+        textColor=NAVY_DARK,
+        alignment=TA_LEFT,
+        spaceAfter=2 * mm,
+        leading=20,
+    )
+    subtitle = ParagraphStyle(
+        "PriceSub",
+        parent=styles["Normal"],
+        fontName=regular,
+        fontSize=9,
+        textColor=MUTED,
+        alignment=TA_LEFT,
+        leading=13,
+    )
+    cell = ParagraphStyle(
+        "PriceCell",
+        parent=styles["Normal"],
+        fontName=regular,
+        fontSize=9,
+        textColor=TEXT,
+        leading=12,
+        alignment=TA_LEFT,
+    )
+    cell_right = ParagraphStyle("PriceCellR", parent=cell, alignment=TA_RIGHT)
+    cell_center = ParagraphStyle("PriceCellC", parent=cell, alignment=TA_CENTER)
+    head = ParagraphStyle(
+        "PriceHead",
+        parent=cell,
+        fontName=bold,
+        textColor=colors.white,
+        alignment=TA_CENTER,
+        fontSize=9,
+        leading=12,
+    )
+
+    story: list[Any] = []
+    today = datetime.now().strftime("%d.%m.%Y")
+    story.append(Paragraph("Прайс-лист", title_style))
+    story.append(
+        Paragraph(
+            f"Дата: {today}&nbsp;&nbsp;|&nbsp;&nbsp;"
+            f"Цены продажи в {quote_currency} за указанную единицу.",
+            subtitle,
+        )
+    )
+    story.append(Spacer(1, 6 * mm))
+
+    header = [
+        Paragraph("Товар", head),
+        Paragraph("Единица измерения", head),
+        Paragraph("Цена продажи", head),
+    ]
+    data: list[list[Any]] = [header]
+    for line in lines:
+        name = str(line.get("name") or "")
+        condition = str(line.get("condition") or "").strip()
+        product = f"{name} ({condition})" if condition else name
+        data.append(
+            [
+                Paragraph(product, cell),
+                Paragraph(str(line.get("input_unit") or ""), cell_center),
+                Paragraph(money(line.get("unit_selling_fx", 0), quote_currency), cell_right),
+            ]
+        )
+
+    table = Table(
+        data,
+        colWidths=[108 * mm, 38 * mm, 32 * mm],
+        repeatRows=1,
+    )
+    style_commands = [
+        ("BACKGROUND", (0, 0), (-1, 0), NAVY),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), bold),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("GRID", (0, 0), (-1, -1), 0.4, LINE),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ]
+    for i in range(1, len(data)):
+        if i % 2 == 0:
+            style_commands.append(("BACKGROUND", (0, i), (-1, i), ROW_ALT))
+    table.setStyle(TableStyle(style_commands))
+    story.append(table)
+
+    def _header_line(canvas, doc_):
+        canvas.saveState()
+        canvas.setFillColor(NAVY)
+        canvas.rect(0, A4[1] - 6 * mm, A4[0], 6 * mm, fill=1, stroke=0)
+        canvas.setFillColor(NAVY)
+        canvas.rect(0, 0, A4[0], 8 * mm, fill=1, stroke=0)
+        canvas.setFillColor(colors.white)
+        canvas.setFont(regular, 7)
+        canvas.drawString(16 * mm, 3 * mm, "Материалы ВСП · прайс-лист")
+        canvas.drawRightString(A4[0] - 16 * mm, 3 * mm, f"стр. {doc_.page}")
+        canvas.restoreState()
+
+    doc.build(story, onFirstPage=_header_line, onLaterPages=_header_line)
+    return buffer.getvalue()
+
+
 def build_settlement_pdf(
     lines: list[dict[str, Any]],
     shipment: dict[str, float],

@@ -16,7 +16,14 @@ from calculations import (
     uah_to_fx,
 )
 from db import get_saved_order, init_db, parse_amount, save_order
-from pdf_export import build_quote_pdf, build_settlement_pdf, grouped_int, money, weight_fmt
+from pdf_export import (
+    build_price_list_pdf,
+    build_quote_pdf,
+    build_settlement_pdf,
+    grouped_int,
+    money,
+    weight_fmt,
+)
 
 
 def test_ton_to_pieces():
@@ -108,6 +115,12 @@ def test_order_and_pdf():
     assert "закуп" not in pdf.decode("latin-1", errors="ignore").lower()
     assert abs(totals["weight_tons"] - 1.625) < 1e-9
     assert weight_fmt(totals["weight_tons"]) == "1.625 т"
+    price_pdf = build_price_list_pdf(lines, quote_currency="USD")
+    assert price_pdf.startswith(b"%PDF")
+    assert b"62000" not in price_pdf
+    decoded = price_pdf.decode("latin-1", errors="ignore").lower()
+    assert "закуп" not in decoded
+    assert "марж" not in decoded
 
 
 def test_order_extra_costs():

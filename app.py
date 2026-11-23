@@ -44,7 +44,14 @@ save_order = db_mod.save_order
 init_db = db_mod.init_db
 get_saved_order = db_mod.get_saved_order
 from auth import require_login
-from pdf_export import build_quote_pdf, build_settlement_pdf, grouped_int, money, qty_fmt
+from pdf_export import (
+    build_price_list_pdf,
+    build_quote_pdf,
+    build_settlement_pdf,
+    grouped_int,
+    money,
+    qty_fmt,
+)
 
 st.set_page_config(
     page_title="Калькулятор ВСП",
@@ -1025,12 +1032,21 @@ with tab_calc:
                 quote_currency=st.session_state.fx_currency,
             )
             file_name = f"KP_VSP_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
-            st.download_button(
-                "Экспорт в PDF",
+            price_pdf = build_price_list_pdf(lines, quote_currency=st.session_state.fx_currency)
+            pdf_col, price_col = st.columns(2)
+            pdf_col.download_button(
+                "Экспорт КП в PDF",
                 data=pdf_bytes,
                 file_name=file_name,
                 mime="application/pdf",
                 type="primary",
+                width="stretch",
+            )
+            price_col.download_button(
+                "Экспорт прайса в PDF",
+                data=price_pdf,
+                file_name=f"Price_VSP_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                mime="application/pdf",
                 width="stretch",
             )
 

@@ -246,7 +246,7 @@
       "condition": "Новое",
       "purchase_unit": "Штука",
       "purchase_price": 100000.0,
-      "piece_weight_kg": 1000.0
+      "piece_weight_kg": 1200.0
     },
     {
       "id": 35,
@@ -254,7 +254,7 @@
       "condition": "Новое",
       "purchase_unit": "Штука",
       "purchase_price": 100000.0,
-      "piece_weight_kg": 1000.0
+      "piece_weight_kg": 1200.0
     },
     {
       "id": 36,

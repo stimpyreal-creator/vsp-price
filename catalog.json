@@ -42,16 +42,16 @@
     },
     {
       "id": 6,
-      "name": "Накладка 1Р-65",
-      "condition": "Новое",
+      "name": "Накладка стыковая Р-65 с хранения 1Р-65",
+      "condition": "БУ",
       "purchase_unit": "Тонна",
       "purchase_price": 50000.0,
       "piece_weight_kg": 29.5
     },
     {
       "id": 7,
-      "name": "Накладка 2Р-65",
-      "condition": "Новое",
+      "name": "Накладка стыковая Р-65 с хранения 2Р-65",
+      "condition": "БУ",
       "purchase_unit": "Тонна",
       "purchase_price": 50000.0,
       "piece_weight_kg": 23.78

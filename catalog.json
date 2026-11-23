@@ -247,6 +247,14 @@
       "purchase_unit": "Штука",
       "purchase_price": 500000.0,
       "piece_weight_kg": 10000.0
+    },
+    {
+      "id": 33,
+      "name": "Рамный рельс с остряком Р-50 (без износа)",
+      "condition": "Новое",
+      "purchase_unit": "Штука",
+      "purchase_price": 100000.0,
+      "piece_weight_kg": 1000.0
     }
   ]
 }

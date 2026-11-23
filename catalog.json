@@ -271,6 +271,14 @@
       "purchase_unit": "Штука",
       "purchase_price": 100000.0,
       "piece_weight_kg": 1000.0
+    },
+    {
+      "id": 36,
+      "name": "Крестовина 1/11 Р-65 б/у",
+      "condition": "БУ",
+      "purchase_unit": "Штука",
+      "purchase_price": 100000.0,
+      "piece_weight_kg": 1400.0
     }
   ]
 }

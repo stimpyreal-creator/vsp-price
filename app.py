@@ -11,9 +11,11 @@ import streamlit as st
 
 import calculations as calc_mod
 import db as db_mod
+import pdf_export as pdf_mod
 
 calc_mod = importlib.reload(calc_mod)
 db_mod = importlib.reload(db_mod)
+pdf_mod = importlib.reload(pdf_mod)
 
 ceil_int = calc_mod.ceil_int
 order_totals = calc_mod.order_totals
@@ -44,14 +46,16 @@ save_order = db_mod.save_order
 init_db = db_mod.init_db
 get_saved_order = db_mod.get_saved_order
 from auth import require_login
-from pdf_export import (
-    build_price_list_pdf,
-    build_quote_pdf,
-    build_settlement_pdf,
-    grouped_int,
-    money,
-    qty_fmt,
-)
+
+if not hasattr(pdf_mod, "build_price_list_pdf"):
+    pdf_mod = importlib.reload(pdf_mod)
+
+build_price_list_pdf = pdf_mod.build_price_list_pdf
+build_quote_pdf = pdf_mod.build_quote_pdf
+build_settlement_pdf = pdf_mod.build_settlement_pdf
+grouped_int = pdf_mod.grouped_int
+money = pdf_mod.money
+qty_fmt = pdf_mod.qty_fmt
 
 st.set_page_config(
     page_title="Калькулятор ВСП",

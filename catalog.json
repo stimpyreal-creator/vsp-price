@@ -57,14 +57,6 @@
       "piece_weight_kg": 23.78
     },
     {
-      "id": 9,
-      "name": "Подкладка Д65",
-      "condition": "Новое",
-      "purchase_unit": "Тонна",
-      "purchase_price": 50000.0,
-      "piece_weight_kg": 7.66
-    },
-    {
       "id": 10,
       "name": "Болт стыковой м24*150 в сборе",
       "condition": "Новое",

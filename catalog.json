@@ -231,6 +231,14 @@
       "purchase_unit": "Штука",
       "purchase_price": 600000.0,
       "piece_weight_kg": 10000.0
+    },
+    {
+      "id": 31,
+      "name": "Стрелочный перевод Р-50 1/9 (без износа, 31м)",
+      "condition": "Новое",
+      "purchase_unit": "Штука",
+      "purchase_price": 600000.0,
+      "piece_weight_kg": 10000.0
     }
   ]
 }

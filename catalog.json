@@ -26,10 +26,10 @@
     },
     {
       "id": 4,
-      "name": "Рельс Р50, 12,5 м",
+      "name": "Рельс Р-50 (до 3мм.)",
       "condition": "БУ",
       "purchase_unit": "Тонна",
-      "purchase_price": 32000.0,
+      "purchase_price": 28000.0,
       "piece_weight_kg": 647.5
     },
     {

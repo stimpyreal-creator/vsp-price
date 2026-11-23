@@ -287,6 +287,14 @@
       "purchase_unit": "Тонна",
       "purchase_price": 45000.0,
       "piece_weight_kg": 6.2
+    },
+    {
+      "id": 38,
+      "name": "Подкладка для деревянной шпалы Р-65 с хранения",
+      "condition": "БУ",
+      "purchase_unit": "Тонна",
+      "purchase_price": 45000.0,
+      "piece_weight_kg": 7.66
     }
   ]
 }

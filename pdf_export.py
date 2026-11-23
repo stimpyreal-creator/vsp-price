@@ -60,11 +60,17 @@ CURRENCY_LABELS = {
 }
 
 
-def money(value: float, currency: str = "UAH") -> str:
+def grouped_int(value: float) -> str:
+    """Целое с разрядами пробелом: 80000 → «80 000»."""
     amount = int(round(float(value or 0)))
-    formatted = f"{amount:,}".replace(",", " ")
+    sign = "-" if amount < 0 else ""
+    formatted = f"{abs(amount):,}".replace(",", " ")
+    return sign + formatted
+
+
+def money(value: float, currency: str = "UAH") -> str:
     label = CURRENCY_LABELS.get(currency, currency)
-    return f"{formatted} {label}"
+    return f"{grouped_int(value)} {label}"
 
 
 def qty_fmt(value: float) -> str:

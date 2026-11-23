@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
 import sqlite3
 from datetime import datetime
@@ -408,6 +409,27 @@ def delete_material(material_id: int) -> None:
     _persist_catalog()
 
 
+def parse_amount(value: object) -> float:
+    """Разбирает сумму с пробелами разрядов: «80 000», «80,000», «80000 грн»."""
+    if isinstance(value, bool):
+        return float(int(value))
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = (
+        str(value or "")
+        .replace("\xa0", "")
+        .replace("\u202f", "")
+        .replace(" ", "")
+        .replace("грн", "")
+        .strip()
+    )
+    if re.fullmatch(r"-?\d+,\d{1,2}", text):
+        text = text.replace(",", ".")
+    else:
+        text = text.replace(",", "")
+    return float(text or 0)
+
+
 def replace_from_dataframe(df: pd.DataFrame) -> None:
     """Сохраняет правки из таблицы админки."""
     required = {"ID", "Название", "Состояние", "Единица закупки", "Цена закупки", "Вес 1 шт, кг"}
@@ -431,7 +453,7 @@ def replace_from_dataframe(df: pd.DataFrame) -> None:
                     str(row["Название"]).strip(),
                     str(row["Состояние"]),
                     str(row["Единица закупки"]),
-                    float(row["Цена закупки"]),
+                    parse_amount(row["Цена закупки"]),
                     float(row["Вес 1 шт, кг"]),
                     material_id,
                 ),

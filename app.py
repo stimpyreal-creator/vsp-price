@@ -44,7 +44,7 @@ save_order = db_mod.save_order
 init_db = db_mod.init_db
 get_saved_order = db_mod.get_saved_order
 from auth import require_login
-from pdf_export import build_quote_pdf, build_settlement_pdf, money, qty_fmt
+from pdf_export import build_quote_pdf, build_settlement_pdf, grouped_int, money, qty_fmt
 
 st.set_page_config(
     page_title="Калькулятор ВСП",
@@ -430,6 +430,12 @@ def show_fit_table(frame: pd.DataFrame) -> None:
     for col in ("Состояние", "Ед.", "Кол-во", "Вес т"):
         if col in frame.columns:
             config[col] = st.column_config.TextColumn(col, width="small")
+    for col in frame.columns:
+        if any(
+            token in str(col)
+            for token in ("грн", "Цена", "Продажа", "Маржа", "Себест", "Сумма")
+        ):
+            config[col] = st.column_config.TextColumn(col, width="medium")
     display = frame.copy()
     if "Материал" in display.columns:
         display["Материал"] = display["Материал"].map(lambda v: clip_text(v, 36))
@@ -562,7 +568,7 @@ with tab_admin:
         st.info("База пуста. Добавьте первую позицию.")
     else:
         st.caption("Правите название, состояние, единицу, цену и вес в таблице, затем сохраните.")
-        price_shown = [f"{int(v)} грн" for v in materials_df["Цена закупки"]]
+        price_shown = [f"{grouped_int(v)} грн" for v in materials_df["Цена закупки"]]
         weight_shown = [f"{float(v):.3f}" for v in materials_df["Вес 1 шт, кг"]]
         auto_widths = {
             "Название": 240,
@@ -575,8 +581,10 @@ with tab_admin:
         }
         saved_widths = get_materials_col_widths()
         col_widths = {key: saved_widths.get(key, auto) for key, auto in auto_widths.items()}
+        editor_df = materials_df.copy()
+        editor_df["Цена закупки"] = editor_df["Цена закупки"].map(grouped_int).astype(str)
         edited = st.data_editor(
-            materials_df,
+            editor_df,
             hide_index=True,
             width="stretch",
             num_rows="fixed",
@@ -592,12 +600,11 @@ with tab_admin:
                 "Название": st.column_config.TextColumn(
                     "Название", required=True, width=col_widths["Название"]
                 ),
-                "Цена закупки": st.column_config.NumberColumn(
+                "Цена закупки": st.column_config.TextColumn(
                     "Цена закупки, грн",
-                    min_value=0,
-                    format="%d грн",
+                    required=True,
                     width=col_widths["Цена закупки"],
-                    help="За 1 тонну или за 1 штуку — по единице закупки, в гривнах",
+                    help="За 1 тонну или за 1 штуку — по единице закупки, в гривнах. Разряды пробелом: 80 000.",
                 ),
                 "Состояние": st.column_config.SelectboxColumn(
                     "Состояние",

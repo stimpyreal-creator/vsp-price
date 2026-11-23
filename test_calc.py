@@ -15,8 +15,8 @@ from calculations import (
     shipment_totals,
     uah_to_fx,
 )
-from db import get_saved_order, init_db, save_order
-from pdf_export import build_quote_pdf, build_settlement_pdf, money, weight_fmt
+from db import get_saved_order, init_db, parse_amount, save_order
+from pdf_export import build_quote_pdf, build_settlement_pdf, grouped_int, money, weight_fmt
 
 
 def test_ton_to_pieces():
@@ -49,6 +49,12 @@ def test_ceil_fx_1():
 def test_money_uah_no_decimals():
     assert money(80000, "UAH") == "80 000 грн"
     assert money(2091, "USD") == "2 091 USD"
+    assert grouped_int(80000) == "80 000"
+    assert grouped_int(1_250_000) == "1 250 000"
+    assert parse_amount("80 000") == 80000
+    assert parse_amount("80 000 грн") == 80000
+    assert parse_amount(80000) == 80000
+    assert parse_amount("1 250 000") == 1_250_000
 
 
 def test_margin_currency():
@@ -290,6 +296,7 @@ if __name__ == "__main__":
     test_ceil_int()
     test_ceil_fx_1()
     test_money_uah_no_decimals()
+    assert grouped_int(80000) == "80 000"
     test_margin_currency()
     test_uah_to_fx()
     test_order_and_pdf()
